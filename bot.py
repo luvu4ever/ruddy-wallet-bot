@@ -384,30 +384,6 @@ Thu nhập: {len(income_data)} lần
         """
         await update.message.reply_text(fallback_summary)
 
-def send_automatic_monthly_summary():
-    """Send monthly summary to all users automatically"""
-    for user_id in ALLOWED_USERS:
-        try:
-            # This would need to be called by a scheduler
-            # Implementation depends on your deployment setup
-            pass
-        except Exception as e:
-            logging.error(f"Failed to send auto summary to {user_id}: {e}")
-
-def setup_monthly_scheduler():
-    """Set up automatic monthly reports"""
-    # Schedule for 1st day of month at 9 AM
-    schedule.every().month.at("09:00").do(send_automatic_monthly_summary)
-    
-    def run_scheduler():
-        while True:
-            schedule.run_pending()
-            time.sleep(3600)  # Check every hour
-    
-    # Run scheduler in background thread
-    scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
-    scheduler_thread.start()
-
 def main():
     # Create application
     application = Application.builder().token(os.getenv("TELEGRAM_BOT_TOKEN")).build()
@@ -421,9 +397,6 @@ def main():
     application.add_handler(CommandHandler("editsaving", edit_savings_command))
     application.add_handler(CommandHandler("category", category_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    # Set up automatic monthly reports
-    setup_monthly_scheduler()
     
     # Start the bot
     print("🤖 Bot is starting...")
