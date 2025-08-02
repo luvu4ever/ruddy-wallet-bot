@@ -22,6 +22,19 @@ supabase: Client = create_client(
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 gemini_model = genai.GenerativeModel('gemini-1.5-flash')
 
+# Configurable categories - edit this list as needed
+EXPENSE_CATEGORIES = [
+    "ăn uống",      # food & drinks
+    "di chuyển",    # transportation  
+    "giải trí",     # entertainment
+    "mua sắm",      # shopping
+    "hóa đơn",      # bills/utilities
+    "sức khỏe",     # health/medical
+    "giáo dục",     # education
+    "gia đình",     # family
+    "khác"          # other
+]
+
 # Allowed users
 ALLOWED_USERS = [int(uid) for uid in os.getenv("ALLOWED_USERS").split(",")]
 
@@ -49,52 +62,58 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🤖 **Welcome to your Personal Finance Bot!**
 
 **Message Types:**
-- **Expenses**: "700 meat 200 coffee" or "spent 50 on gas"
-- **Salary**: "salary 3000" (monthly income)
-- **Random Income**: "random income 500" (side jobs, bonuses)
+• **Expenses**: "700 meat 200 coffee" or "spent 50 on gas"
+• **Salary**: "salary 3000" (monthly income)
+• **Random Income**: "random income 500" (side jobs, bonuses)
 
 **Commands:**
-- /summary - Monthly overview
-- /saving - Current savings amount
-- /editsaving 500 - Set savings to $500
+• /summary - Monthly overview
+• /saving - Current savings amount
+• /editsaving 500 - Set savings to $500
+• /help - Show this help
 
 I'll automatically categorize everything for you!
     """
     await update.message.reply_text(welcome_text)
 
 def parse_message_with_gemini(text: str, user_id: int) -> dict:
-    """Use Gemini to parse different message types"""
+    """Use Gemini to parse Vietnamese/English messages"""
+    
+    categories_str = ", ".join(EXPENSE_CATEGORIES)
     
     prompt = f"""
-Parse this message and identify its type. Return ONLY valid JSON.
+Parse this Vietnamese/English message and identify its type. Return ONLY valid JSON.
 
 Message: "{text}"
 
 Detect these message types and extract data:
 
-1. EXPENSES: "700 meat 200 coffee" or "spent 50 on gas"
-2. SALARY: "salary 3000" or "got salary 2500"  
-3. RANDOM INCOME: "random income 500" or "side job 200"
+1. EXPENSES: "50 bún bò huế", "700 thịt 200 cà phê" or "spent 50 on gas"
+2. SALARY: "lương 3000000", "salary 3000" or "got salary 2500"  
+3. RANDOM INCOME: "thu nhập thêm 500000", "random income 500" or "side job 200"
+
+Available categories: {categories_str}
 
 Return format:
 {{
     "type": "expenses|salary|random_income",
     "expenses": [
-        {{"amount": 700, "description": "meat", "category": "food"}},
-        {{"amount": 200, "description": "coffee", "category": "food"}}
+        {{"amount": 50000, "description": "bún bò huế", "category": "ăn uống"}},
+        {{"amount": 700000, "description": "thịt", "category": "ăn uống"}}
     ],
     "income": {{
-        "amount": 3000,
+        "amount": 3000000,
         "type": "salary|random",
         "description": "monthly salary"
     }}
 }}
 
-Categories for expenses: food, transport, entertainment, shopping, bills, health, other
-
-For expenses: extract all amount+item pairs
-For salary: look for "salary" keyword
-For random income: look for "random income", "side job", "bonus", etc.
+IMPORTANT: 
+- Use the exact categories from the list: {categories_str}
+- For Vietnamese food items, always use "ăn uống" category
+- For transportation (xe ôm, grab, xăng), use "di chuyển"
+- Automatically detect Vietnamese currency amounts (đồng)
+- Extract all amount+item pairs from the message
 
 Return empty arrays/objects for unused fields.
 """
@@ -174,7 +193,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             responses.append(f"🎉 Extra income added: ${income_data['amount']:.2f}")
     
     else:
-        responses.append("🤔 I couldn't understand that message. Try:\n• '700 meat 200 coffee' (expenses)\n• 'salary 3000' (monthly salary)\n• 'random income 500' (extra money)")
+        responses.append("🤔 Tôi không hiểu tin nhắn này. Thử:\n• '50000 bún bò huế' (chi tiêu)\n• 'lương 3000000' (lương tháng)\n• 'thu nhập thêm 500000' (tiền thêm)")
     
     if responses:
         await update.message.reply_text("\n".join(responses))
@@ -195,6 +214,81 @@ async def savings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"💰 **Current Savings**: ${current_savings:.2f}\n📅 Last updated: {last_updated[:10]}")
     else:
         await update.message.reply_text("💰 **Current Savings**: $0.00\n\nUse /editsaving 500 to set your savings amount!")
+
+async def category_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show expenses by category: /category ăn uống"""
+    if not is_authorized(update.effective_user.id):
+        return
+    
+    user_id = update.effective_user.id
+    args = context.args
+    
+    if not args:
+        # Show all categories
+        categories_list = "\n".join([f"• {cat}" for cat in EXPENSE_CATEGORIES])
+        await update.message.reply_text(f"📂 **Danh mục chi tiêu:**\n\n{categories_list}\n\nDùng: `/category ăn uống` để xem chi tiết")
+        return
+    
+    category = " ".join(args).lower()
+    
+    # Get this month's expenses for this category
+    today = datetime.now()
+    month_start = today.replace(day=1).date()
+    
+    expenses = supabase.table("expenses").select("*").eq("user_id", user_id).eq("category", category).gte("date", month_start).execute()
+    
+    if not expenses.data:
+        await update.message.reply_text(f"📂 Không có chi tiêu nào cho danh mục '{category}' tháng này")
+        return
+    
+    # Group by description and sum amounts
+    from collections import defaultdict
+    items_summary = defaultdict(lambda: {"total": 0, "count": 0})
+    
+    for expense in expenses.data:
+        desc = expense["description"]
+        amount = float(expense["amount"])
+        items_summary[desc]["total"] += amount
+        items_summary[desc]["count"] += 1
+    
+    # Create summary
+    total_category = sum(item["total"] for item in items_summary.values())
+    
+    summary_lines = []
+    for desc, data in sorted(items_summary.items(), key=lambda x: x[1]["total"], reverse=True):
+        if data["count"] > 1:
+            summary_lines.append(f"• {desc}: {data['total']:,.0f}đ ({data['count']} lần)")
+        else:
+            summary_lines.append(f"• {desc}: {data['total']:,.0f}đ")
+    
+    summary_text = f"📂 **{category.title()}** - Tháng này\n\n"
+    summary_text += "\n".join(summary_lines[:15])  # Limit to 15 items
+    summary_text += f"\n\n💰 **Tổng cộng: {total_category:,.0f}đ**"
+    
+    if len(summary_lines) > 15:
+        summary_text += f"\n\n... và {len(summary_lines) - 15} mục khác"
+    
+    await update.message.reply_text(summary_text)
+    """Show quick help"""
+    if not is_authorized(update.effective_user.id):
+        return
+    
+    help_text = """
+💰 **Quick Help**
+
+**Track Money:**
+• `700 meat 200 coffee` - expenses
+• `salary 3000` - monthly income  
+• `random income 500` - extra money
+
+**Commands:**
+• `/saving` - check savings
+• `/editsaving 1500` - set savings to $1500
+• `/summary` - monthly report
+
+Just type naturally - AI handles the rest! 🤖
+    """
+    await update.message.reply_text(help_text)
 
 async def edit_savings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Set savings to specific amount: /editsaving 500"""
@@ -238,58 +332,88 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     month_start = today.replace(day=1).date()
     
     expenses = supabase.table("expenses").select("*").eq("user_id", user_id).gte("date", month_start).execute()
-    subscriptions = supabase.table("subscriptions").select("*").eq("user_id", user_id).execute()
+    income = supabase.table("income").select("*").eq("user_id", user_id).gte("date", month_start).execute()
     
-    # Generate summary with Gemini
+    # Generate summary with Gemini in Vietnamese
     expense_data = expenses.data
-    subscription_data = subscriptions.data
+    income_data = income.data
     
     summary_prompt = f"""
-Create a friendly monthly expense summary for this data:
+Tạo báo cáo tài chính tháng này bằng tiếng Việt cho dữ liệu:
 
-Expenses this month: {json.dumps(expense_data, default=str)}
-Active subscriptions: {json.dumps(subscription_data, default=str)}
+Chi tiêu tháng này: {json.dumps(expense_data, default=str)}
+Thu nhập tháng này: {json.dumps(income_data, default=str)}
 
-Make it conversational and include:
-- Total spent this month
-- Top categories
-- Subscription costs
-- Any insights or patterns
+Bao gồm:
+- Tổng thu nhập tháng này (đồng VND)
+- Tổng chi tiêu tháng này (đồng VND) 
+- Tiết kiệm ròng (thu nhập - chi tiêu)
+- Top 5 danh mục chi tiêu nhiều nhất
+- Nhận xét và đề xuất
 
-Keep it concise but helpful. Use emojis to make it friendly.
+Viết bằng tiếng Việt, thân thiện và có emoji. Dùng định dạng tiền VND (ví dụ: 1.500.000đ).
 """
     
     try:
         response = gemini_model.generate_content(summary_prompt)
         summary = response.text
-        await update.message.reply_text(f"📊 **Monthly Summary**\n\n{summary}")
+        await update.message.reply_text(f"📊 **Báo cáo tháng {today.month}/{today.year}**\n\n{summary}")
         
     except Exception as e:
         total_expenses = sum(Decimal(str(exp["amount"])) for exp in expense_data)
-        total_subscriptions = sum(Decimal(str(sub["amount"])) for sub in subscription_data)
+        total_income = sum(Decimal(str(inc["amount"])) for inc in income_data)
+        net_savings = total_income - total_expenses
         
         fallback_summary = f"""
-📊 **Monthly Summary**
+📊 **Báo cáo tháng {today.month}/{today.year}**
 
-💰 Total Expenses: ${total_expenses:.2f}
-🔄 Monthly Subscriptions: ${total_subscriptions:.2f}
-📈 Total Monthly Spending: ${total_expenses + total_subscriptions:.2f}
+💵 Tổng thu nhập: {total_income:,.0f}đ
+💰 Tổng chi tiêu: {total_expenses:,.0f}đ
+📈 Tiết kiệm ròng: {net_savings:,.0f}đ
 
-Expenses this month: {len(expense_data)} entries
-Active subscriptions: {len(subscription_data)} services
+Chi tiêu: {len(expense_data)} lần
+Thu nhập: {len(income_data)} lần
         """
         await update.message.reply_text(fallback_summary)
 
-def main():
+import schedule
+import threading
+import time
+
+def send_automatic_monthly_summary():
+    """Send monthly summary to all users automatically"""
+    for user_id in ALLOWED_USERS:
+        try:
+            # This would need to be called by a scheduler
+            # Implementation depends on your deployment setup
+            pass
+        except Exception as e:
+            logging.error(f"Failed to send auto summary to {user_id}: {e}")
+
+def setup_monthly_scheduler():
+    """Set up automatic monthly reports"""
+    # Schedule for 1st day of month at 9 AM
+    schedule.every().month.at("09:00").do(send_automatic_monthly_summary)
+    
+    def run_scheduler():
+        while True:
+            schedule.run_pending()
+            time.sleep(3600)  # Check every hour
+    
+    # Run scheduler in background thread
+    scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+    scheduler_thread.start()
     # Create application
     application = Application.builder().token(os.getenv("TELEGRAM_BOT_TOKEN")).build()
     
     # Add handlers
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("summary", monthly_summary))
     application.add_handler(CommandHandler("month", monthly_summary))
     application.add_handler(CommandHandler("saving", savings_command))
     application.add_handler(CommandHandler("editsaving", edit_savings_command))
+    application.add_handler(CommandHandler("category", category_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     # Start the bot
