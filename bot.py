@@ -75,6 +75,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • /saving - Xem tiết kiệm hiện tại
 • /editsaving 500000 - Đặt tiết kiệm thành 500k
 • /category - Xem danh mục
+• /wishadd - Thêm wishlist
+• /wishlist - Xem wishlist  
 • /help - Hướng dẫn
 
 AI tự động phân loại mọi thứ cho bạn! 🤖
@@ -324,6 +326,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • `/summary` - báo cáo tháng
 • `/category` - xem danh mục
 • `/category ăn uống` - chi tiết danh mục
+• `/wishadd iPhone 25000000` - thêm wishlist
+• `/wishlist` - xem wishlist
+• `/wishbuy 1` - đánh dấu đã mua
 
 AI tự động phân loại! 🤖
     """
@@ -384,6 +389,181 @@ Thu nhập: {len(income_data)} lần
         """
         await update.message.reply_text(fallback_summary)
 
+async def wishlist_add_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Add item to wishlist: /wishadd iPhone 15 Pro 25000000"""
+    if not is_authorized(update.effective_user.id):
+        return
+    
+    user_id = update.effective_user.id
+    args = context.args
+    
+    if len(args) < 2:
+        await update.message.reply_text("❌ Cách dùng: /wishadd iPhone 15 Pro 25000000\n(tên sản phẩm và giá dự kiến)")
+        return
+    
+    try:
+        # Last argument should be price
+        estimated_price = float(args[-1])
+        item_name = " ".join(args[:-1])
+        
+        wishlist_data = {
+            "user_id": user_id,
+            "item_name": item_name,
+            "estimated_price": estimated_price,
+            "priority": 1,  # Default priority
+            "category": "khác",  # Default category
+            "purchased": False
+        }
+        
+        supabase.table("wishlist").insert(wishlist_data).execute()
+        await update.message.reply_text(f"✅ Đã thêm vào wishlist!\n🛍️ **{item_name}**: {estimated_price:,.0f}đ")
+        
+    except ValueError:
+        await update.message.reply_text("❌ Giá phải là số. Ví dụ: /wishadd iPhone 15 25000000")
+
+async def wishlist_view_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """View wishlist: /wishlist"""
+    if not is_authorized(update.effective_user.id):
+        return
+    
+    user_id = update.effective_user.id
+    
+    # Get all wishlist items (not purchased)
+    wishlist_data = supabase.table("wishlist").select("*").eq("user_id", user_id).eq("purchased", False).execute()
+    
+    if not wishlist_data.data:
+        await update.message.reply_text("📝 Wishlist trống!\n\nDùng /wishadd để thêm sản phẩm mong muốn")
+        return
+    
+    # Sort by priority (high to low) then by price
+    items = sorted(wishlist_data.data, key=lambda x: (-x.get("priority", 1), -x.get("estimated_price", 0)))
+    
+    wishlist_text = "🛍️ **Wishlist của bạn:**\n\n"
+    total_wishlist = 0
+    
+    for i, item in enumerate(items[:20], 1):  # Limit to 20 items
+        name = item["item_name"]
+        price = item.get("estimated_price", 0)
+        priority = item.get("priority", 1)
+        
+        priority_emoji = "🔥" if priority == 3 else "⭐" if priority == 2 else "💭"
+        
+        wishlist_text += f"{i}. {priority_emoji} **{name}**: {price:,.0f}đ\n"
+        total_wishlist += price
+    
+    wishlist_text += f"\n💰 **Tổng giá trị**: {total_wishlist:,.0f}đ"
+    
+    if len(items) > 20:
+        wishlist_text += f"\n\n... và {len(items) - 20} sản phẩm khác"
+    
+    wishlist_text += "\n\n**Lệnh:**\n• /wishbuy [số] - đánh dấu đã mua\n• /wishpriority [số] [1-3] - đặt độ ưu tiên"
+    
+    await update.message.reply_text(wishlist_text)
+
+async def wishlist_buy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Mark item as purchased: /wishbuy 1"""
+    if not is_authorized(update.effective_user.id):
+        return
+    
+    user_id = update.effective_user.id
+    args = context.args
+    
+    if not args:
+        await update.message.reply_text("❌ Cách dùng: /wishbuy 1 (số thứ tự từ wishlist)")
+        return
+    
+    try:
+        item_index = int(args[0]) - 1  # Convert to 0-based index
+        
+        # Get wishlist items
+        wishlist_data = supabase.table("wishlist").select("*").eq("user_id", user_id).eq("purchased", False).execute()
+        
+        if not wishlist_data.data or item_index >= len(wishlist_data.data):
+            await update.message.reply_text("❌ Số thứ tự không hợp lệ. Kiểm tra lại /wishlist")
+            return
+        
+        # Sort same as in view function
+        items = sorted(wishlist_data.data, key=lambda x: (-x.get("priority", 1), -x.get("estimated_price", 0)))
+        selected_item = items[item_index]
+        
+        # Mark as purchased
+        supabase.table("wishlist").update({"purchased": True}).eq("id", selected_item["id"]).execute()
+        
+        item_name = selected_item["item_name"]
+        item_price = selected_item.get("estimated_price", 0)
+        
+        await update.message.reply_text(f"🎉 Chúc mừng! Đã mua **{item_name}**!\n💰 Giá: {item_price:,.0f}đ")
+        
+    except ValueError:
+        await update.message.reply_text("❌ Vui lòng nhập số hợp lệ: /wishbuy 1")
+
+async def wishlist_priority_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Set item priority: /wishpriority 1 3"""
+    if not is_authorized(update.effective_user.id):
+        return
+    
+    user_id = update.effective_user.id
+    args = context.args
+    
+    if len(args) != 2:
+        await update.message.reply_text("❌ Cách dùng: /wishpriority 1 3\n(số thứ tự và độ ưu tiên 1-3)\n\n1 = thấp 💭\n2 = trung bình ⭐\n3 = cao 🔥")
+        return
+    
+    try:
+        item_index = int(args[0]) - 1
+        priority = int(args[1])
+        
+        if priority not in [1, 2, 3]:
+            await update.message.reply_text("❌ Độ ưu tiên phải là 1, 2, hoặc 3")
+            return
+        
+        # Get wishlist items
+        wishlist_data = supabase.table("wishlist").select("*").eq("user_id", user_id).eq("purchased", False).execute()
+        
+        if not wishlist_data.data or item_index >= len(wishlist_data.data):
+            await update.message.reply_text("❌ Số thứ tự không hợp lệ. Kiểm tra lại /wishlist")
+            return
+        
+        items = sorted(wishlist_data.data, key=lambda x: (-x.get("priority", 1), -x.get("estimated_price", 0)))
+        selected_item = items[item_index]
+        
+        # Update priority
+        supabase.table("wishlist").update({"priority": priority}).eq("id", selected_item["id"]).execute()
+        
+        priority_text = "cao 🔥" if priority == 3 else "trung bình ⭐" if priority == 2 else "thấp 💭"
+        
+        await update.message.reply_text(f"✅ Đã cập nhật độ ưu tiên!\n🛍️ **{selected_item['item_name']}**: {priority_text}")
+        
+    except ValueError:
+        await update.message.reply_text("❌ Vui lòng nhập số hợp lệ: /wishpriority 1 3")
+
+async def wishlist_bought_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """View purchased items: /wishbought"""
+    if not is_authorized(update.effective_user.id):
+        return
+    
+    user_id = update.effective_user.id
+    
+    # Get purchased items
+    bought_data = supabase.table("wishlist").select("*").eq("user_id", user_id).eq("purchased", True).execute()
+    
+    if not bought_data.data:
+        await update.message.reply_text("🛍️ Chưa mua sản phẩm nào từ wishlist!")
+        return
+    
+    bought_text = "🎉 **Đã mua từ wishlist:**\n\n"
+    total_spent = 0
+    
+    for i, item in enumerate(bought_data.data, 1):
+        name = item["item_name"]
+        price = item.get("estimated_price", 0)
+        bought_text += f"{i}. ✅ **{name}**: {price:,.0f}đ\n"
+        total_spent += price
+    
+    bought_text += f"\n💰 **Tổng đã chi**: {total_spent:,.0f}đ"
+    
+    await update.message.reply_text(bought_text)
+
 def main():
     # Create application
     application = Application.builder().token(os.getenv("TELEGRAM_BOT_TOKEN")).build()
@@ -396,6 +576,11 @@ def main():
     application.add_handler(CommandHandler("saving", savings_command))
     application.add_handler(CommandHandler("editsaving", edit_savings_command))
     application.add_handler(CommandHandler("category", category_command))
+    application.add_handler(CommandHandler("wishadd", wishlist_add_command))
+    application.add_handler(CommandHandler("wishlist", wishlist_view_command))
+    application.add_handler(CommandHandler("wishbuy", wishlist_buy_command))
+    application.add_handler(CommandHandler("wishpriority", wishlist_priority_command))
+    application.add_handler(CommandHandler("wishbought", wishlist_bought_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     # Start the bot
