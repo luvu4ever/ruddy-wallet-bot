@@ -8,19 +8,13 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from supabase import create_client, Client
 import google.generativeai as genai
 from dotenv import load_dotenv
+import schedule
+import threading
+import time
+from collections import defaultdict
 
 # Load environment variables
 load_dotenv()
-
-# Initialize clients
-supabase: Client = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_KEY")
-)
-
-# Configure Gemini
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-gemini_model = genai.GenerativeModel('gemini-1.5-flash')
 
 # Configurable categories - edit this list as needed
 EXPENSE_CATEGORIES = [
@@ -37,6 +31,16 @@ EXPENSE_CATEGORIES = [
 
 # Allowed users
 ALLOWED_USERS = [int(uid) for uid in os.getenv("ALLOWED_USERS").split(",")]
+
+# Initialize clients
+supabase: Client = create_client(
+    os.getenv("SUPABASE_URL"),
+    os.getenv("SUPABASE_KEY")
+)
+
+# Configure Gemini
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+gemini_model = genai.GenerativeModel('gemini-1.5-flash')
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -59,20 +63,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     supabase.table("users").upsert(user_data).execute()
     
     welcome_text = """
-🤖 **Welcome to your Personal Finance Bot!**
+🤖 **Chào mừng đến với Bot Tài chính cá nhân!**
 
-**Message Types:**
-• **Expenses**: "700 meat 200 coffee" or "spent 50 on gas"
-• **Salary**: "salary 3000" (monthly income)
-• **Random Income**: "random income 500" (side jobs, bonuses)
+**Cách sử dụng:**
+• **Chi tiêu**: "50000 bún bò huế" hoặc "700000 thịt 200000 cà phê"
+• **Lương**: "lương 3000000" (thu nhập tháng)
+• **Thu nhập thêm**: "thu nhập thêm 500000" (làm thêm, thưởng)
 
-**Commands:**
-• /summary - Monthly overview
-• /saving - Current savings amount
-• /editsaving 500 - Set savings to $500
-• /help - Show this help
+**Lệnh:**
+• /summary - Báo cáo tháng
+• /saving - Xem tiết kiệm hiện tại
+• /editsaving 500000 - Đặt tiết kiệm thành 500k
+• /category - Xem danh mục
+• /help - Hướng dẫn
 
-I'll automatically categorize everything for you!
+AI tự động phân loại mọi thứ cho bạn! 🤖
     """
     await update.message.reply_text(welcome_text)
 
@@ -160,7 +165,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
             
             supabase.table("expenses").insert(expense_data).execute()
-            responses.append(f"💰 Spent: ${expense['amount']:.2f} - {expense['description']} ({expense.get('category', 'other')})")
+            responses.append(f"💰 Spent: {expense['amount']:,.0f}đ - {expense['description']} ({expense.get('category', 'other')})")
     
     elif message_type == "salary":
         # Save salary income
@@ -175,7 +180,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
             
             supabase.table("income").insert(salary_data).execute()
-            responses.append(f"💵 Salary added: ${income_data['amount']:.2f}")
+            responses.append(f"💵 Lương đã thêm: {income_data['amount']:,.0f}đ")
     
     elif message_type == "random_income":
         # Save random income
@@ -190,7 +195,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
             
             supabase.table("income").insert(random_income_data).execute()
-            responses.append(f"🎉 Extra income added: ${income_data['amount']:.2f}")
+            responses.append(f"🎉 Thu nhập thêm: {income_data['amount']:,.0f}đ")
     
     else:
         responses.append("🤔 Tôi không hiểu tin nhắn này. Thử:\n• '50000 bún bò huế' (chi tiêu)\n• 'lương 3000000' (lương tháng)\n• 'thu nhập thêm 500000' (tiền thêm)")
@@ -211,9 +216,40 @@ async def savings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if savings_data.data:
         current_savings = float(savings_data.data[0]["current_amount"])
         last_updated = savings_data.data[0]["last_updated"]
-        await update.message.reply_text(f"💰 **Current Savings**: ${current_savings:.2f}\n📅 Last updated: {last_updated[:10]}")
+        await update.message.reply_text(f"💰 **Tiết kiệm hiện tại**: {current_savings:,.0f}đ\n📅 Cập nhật: {last_updated[:10]}")
     else:
-        await update.message.reply_text("💰 **Current Savings**: $0.00\n\nUse /editsaving 500 to set your savings amount!")
+        await update.message.reply_text("💰 **Tiết kiệm hiện tại**: 0đ\n\nDùng /editsaving 500000 để đặt số tiền tiết kiệm!")
+
+async def edit_savings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Set savings to specific amount: /editsaving 500000"""
+    if not is_authorized(update.effective_user.id):
+        return
+    
+    user_id = update.effective_user.id
+    
+    try:
+        # Get amount from command
+        args = context.args
+        if not args:
+            await update.message.reply_text("❌ Cách dùng: /editsaving 500000 (để đặt tiết kiệm thành 500k)")
+            return
+        
+        new_amount = float(args[0])
+        
+        # Update or insert savings record
+        savings_data = {
+            "user_id": user_id,
+            "current_amount": new_amount,
+            "last_updated": datetime.now().isoformat()
+        }
+        
+        # Use upsert to update if exists, insert if not
+        supabase.table("savings").upsert(savings_data).execute()
+        
+        await update.message.reply_text(f"✅ Đã cập nhật tiết kiệm!\n💰 **Tiết kiệm hiện tại**: {new_amount:,.0f}đ")
+        
+    except ValueError:
+        await update.message.reply_text("❌ Vui lòng nhập số hợp lệ: /editsaving 500000")
 
 async def category_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show expenses by category: /category ăn uống"""
@@ -242,7 +278,6 @@ async def category_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Group by description and sum amounts
-    from collections import defaultdict
     items_summary = defaultdict(lambda: {"total": 0, "count": 0})
     
     for expense in expenses.data:
@@ -269,57 +304,30 @@ async def category_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         summary_text += f"\n\n... và {len(summary_lines) - 15} mục khác"
     
     await update.message.reply_text(summary_text)
-    """Show quick help"""
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show quick help in Vietnamese"""
     if not is_authorized(update.effective_user.id):
         return
     
     help_text = """
-💰 **Quick Help**
+💰 **Hướng dẫn nhanh**
 
-**Track Money:**
-• `700 meat 200 coffee` - expenses
-• `salary 3000` - monthly income  
-• `random income 500` - extra money
+**Ghi chi tiêu:**
+• `50000 bún bò huế` - chi tiêu
+• `lương 3000000` - lương tháng  
+• `thu nhập thêm 500000` - tiền thêm
 
-**Commands:**
-• `/saving` - check savings
-• `/editsaving 1500` - set savings to $1500
-• `/summary` - monthly report
+**Lệnh:**
+• `/saving` - xem tiết kiệm
+• `/editsaving 1500000` - đặt tiết kiệm
+• `/summary` - báo cáo tháng
+• `/category` - xem danh mục
+• `/category ăn uống` - chi tiết danh mục
 
-Just type naturally - AI handles the rest! 🤖
+AI tự động phân loại! 🤖
     """
     await update.message.reply_text(help_text)
-
-async def edit_savings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Set savings to specific amount: /editsaving 500"""
-    if not is_authorized(update.effective_user.id):
-        return
-    
-    user_id = update.effective_user.id
-    
-    try:
-        # Get amount from command
-        args = context.args
-        if not args:
-            await update.message.reply_text("❌ Usage: /editsaving 500 (to set savings to $500)")
-            return
-        
-        new_amount = float(args[0])
-        
-        # Update or insert savings record
-        savings_data = {
-            "user_id": user_id,
-            "current_amount": new_amount,
-            "last_updated": datetime.now().isoformat()
-        }
-        
-        # Use upsert to update if exists, insert if not
-        supabase.table("savings").upsert(savings_data).execute()
-        
-        await update.message.reply_text(f"✅ Savings updated!\n💰 **Current savings**: ${new_amount:.2f}")
-        
-    except ValueError:
-        await update.message.reply_text("❌ Please enter a valid number: /editsaving 500")
 
 async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update.effective_user.id):
@@ -376,10 +384,6 @@ Thu nhập: {len(income_data)} lần
         """
         await update.message.reply_text(fallback_summary)
 
-import schedule
-import threading
-import time
-
 def send_automatic_monthly_summary():
     """Send monthly summary to all users automatically"""
     for user_id in ALLOWED_USERS:
@@ -403,6 +407,8 @@ def setup_monthly_scheduler():
     # Run scheduler in background thread
     scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
     scheduler_thread.start()
+
+def main():
     # Create application
     application = Application.builder().token(os.getenv("TELEGRAM_BOT_TOKEN")).build()
     
@@ -415,6 +421,9 @@ def setup_monthly_scheduler():
     application.add_handler(CommandHandler("editsaving", edit_savings_command))
     application.add_handler(CommandHandler("category", category_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    # Set up automatic monthly reports
+    setup_monthly_scheduler()
     
     # Start the bot
     print("🤖 Bot is starting...")
