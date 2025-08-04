@@ -19,18 +19,26 @@ Message: "{text}"
 
 Detect these message types and extract data:
 
-1. EXPENSES: "50 bún bò huế", "700 thịt 200 cà phê", "100 cát mèo" or "spent 50 on gas"
-2. SALARY: "lương 3000000", "salary 3000" or "got salary 2500"  
-3. RANDOM INCOME: "thu nhập thêm 500000", "random income 500" or "side job 200"
+1. EXPENSES: "50k bún bò huế", "700k thịt 200k cà phê", "100k cát mèo", "1.5m bàn ghế", "3tr sofa" or "spent 50k on gas"
+2. SALARY: "lương 3000k", "lương 3m", "lương 3tr", "salary 3000k" or "got salary 2500k"  
+3. RANDOM INCOME: "thu nhập thêm 500k", "random income 500k" or "side job 200k"
 
 Available categories: {categories_str}
+
+IMPORTANT CURRENCY PARSING:
+- "k" = thousand (50k = 50000)
+- "m" = million (3m = 3000000)
+- "tr" = million (3tr = 3000000, triệu in Vietnamese)
+- Plain numbers are also VND (50000 = 50000)
+- Convert ALL amounts to full VND numbers
 
 Return format:
 {{
     "type": "expenses|salary|random_income",
     "expenses": [
         {{"amount": 50000, "description": "bún bò huế", "category": "ăn uống"}},
-        {{"amount": 100000, "description": "cát mèo", "category": "mèo"}}
+        {{"amount": 100000, "description": "cát mèo", "category": "mèo"}},
+        {{"amount": 1500000, "description": "bàn ghế", "category": "nội thất"}}
     ],
     "income": {{
         "amount": 3000000,
@@ -44,7 +52,8 @@ IMPORTANT:
 - For Vietnamese food items, always use "ăn uống" category
 - For transportation (xe ôm, grab, xăng), use "di chuyển"
 - For cat-related items (cát mèo, thức ăn mèo, thuốc mèo, đồ chơi mèo), use "mèo" category
-- Automatically detect Vietnamese currency amounts (đồng)
+- For furniture items (bàn, ghế, tủ, giường, sofa, đèn, rèm, thảm), use "nội thất" category
+- Convert k/m/tr notation: 50k=50000, 1.5m=1500000, 3tr=3000000, 2.5k=2500
 - Extract all amount+item pairs from the message
 
 Return empty arrays/objects for unused fields.
@@ -78,7 +87,7 @@ Bao gồm:
 - Tổng chi tiêu tháng này (đồng VND) 
 - Tiết kiệm ròng (thu nhập - chi tiêu)
 - Top 5 danh mục chi tiêu nhiều nhất
-- Đặc biệt chú ý danh mục "mèo" nếu có
+- Đặc biệt chú ý danh mục "mèo" và "nội thất" nếu có
 - Nhận xét và đề xuất
 
 Viết bằng tiếng Việt, thân thiện và có emoji. Dùng định dạng tiền VND (ví dụ: 1.500.000đ).

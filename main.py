@@ -15,6 +15,16 @@ from wishlist_handlers import (
     wishlist_view_command,
     wishlist_remove_command
 )
+from subscription_handlers import (
+    subscription_add_command,
+    subscription_list_command,
+    subscription_remove_command
+)
+from budget_handlers import (
+    budget_command,
+    budget_list_command
+)
+from scheduler import start_scheduler
 
 def main():
     """Main function to run the bot"""
@@ -35,8 +45,20 @@ def main():
     application.add_handler(CommandHandler("wishlist", wishlist_view_command))
     application.add_handler(CommandHandler("wishremove", wishlist_remove_command))
     
+    # Subscription handlers
+    application.add_handler(CommandHandler("subadd", subscription_add_command))
+    application.add_handler(CommandHandler("sublist", subscription_list_command))
+    application.add_handler(CommandHandler("subremove", subscription_remove_command))
+    
+    # Budget handlers
+    application.add_handler(CommandHandler("budget", budget_command))
+    application.add_handler(CommandHandler("budgetlist", budget_list_command))
+    
     # Message handler (should be last)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    # Start the scheduler
+    start_scheduler()
     
     # Start the bot
     print("🤖 Simplified Personal Finance Bot is starting...")
@@ -44,8 +66,11 @@ def main():
         "ăn uống", "di chuyển", "giải trí", "mua sắm", 
         "hóa đơn", "sức khỏe", "giáo dục", "gia đình", "mèo", "nội thất", "khác"
     ]))
-    print("💰 K/M notation: 50k=50,000đ, 1.5m=1,500,000đ")
+    print("💰 K/M/TR notation: 50k=50,000đ, 1.5m=1,500,000đ, 3tr=3,000,000đ")
     print("📝 Simple wishlist: add, view, remove")
+    print("📅 Subscription feature: auto monthly expenses")
+    print("💰 Budget planning: set spending limits per category")
+    print("📊 Monthly summary reminders: auto sent on 1st of each month")
     print("📝 New feature: /list command to view all monthly expenses by category")
     application.run_polling()
 

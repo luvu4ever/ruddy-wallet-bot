@@ -9,6 +9,7 @@ from config import EXPENSE_CATEGORIES
 from database import db
 from ai_parser import parse_message_with_gemini, generate_monthly_summary
 from utils import is_authorized, format_currency, parse_amount
+from budget_handlers import calculate_remaining_budget, get_total_budget, get_category_emoji
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -36,17 +37,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • **Thu nhập thêm**: "thu nhập thêm 500k"
 
 **Định dạng tiền:**
-• 50k = 50,000đ | 1.5m = 1,500,000đ
+• 50k = 50,000đ | 1.5m = 1,500,000đ | 3tr = 3,000,000đ
 
 **Lệnh:**
 • /list - Xem chi tiêu tháng này
 • /summary - Báo cáo tháng
+• /budget ăn uống 1.5m - Đặt budget
+• /sublist - Xem subscriptions
 • /saving - Xem tiết kiệm
-• /category - Xem danh mục
 • /wishlist - Xem wishlist
 • /help - Hướng dẫn
 
 AI tự động phân loại! 🤖🐱🪑
+Subscriptions tự động hàng tháng! 📅
     """
     await update.message.reply_text(welcome_text)
 
@@ -110,7 +113,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             responses.append(f"🎉 Thu nhập thêm: {format_currency(income_data['amount'])}")
     
     else:
-        responses.append("🤔 Tôi không hiểu tin nhắn này. Thử:\n• '50k bún bò huế' (chi tiêu ăn uống)\n• '100k cát mèo' (chi phí mèo)\n• '1.5m bàn ghế' (nội thất)\n• 'lương 3m' (lương tháng)\n• 'thu nhập thêm 500k' (tiền thêm)")
+        responses.append("🤔 Tôi không hiểu tin nhắn này. Thử:\n• '50k bún bò huế' (chi tiêu ăn uống)\n• '100k cát mèo' (chi phí mèo)\n• '1.5m bàn ghế' hoặc '1.5tr bàn ghế' (nội thất)\n• 'lương 3m' hoặc 'lương 3tr' (lương tháng)\n• 'thu nhập thêm 500k' (tiền thêm)")
     
     if responses:
         await update.message.reply_text("\n".join(responses))
@@ -130,10 +133,10 @@ async def savings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         last_updated = savings_data.data[0]["last_updated"]
         await update.message.reply_text(f"💰 **Tiết kiệm hiện tại**: {format_currency(current_savings)}\n📅 Cập nhật: {last_updated[:10]}")
     else:
-        await update.message.reply_text("💰 **Tiết kiệm hiện tại**: 0đ\n\nDùng /editsaving 500000 để đặt số tiền tiết kiệm!")
+        await update.message.reply_text("💰 **Tiết kiệm hiện tại**: 0đ\n\nDùng /editsaving 500k để đặt số tiền tiết kiệm!")
 
 async def edit_savings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Set savings to specific amount: /editsaving 500000"""
+    """Set savings to specific amount: /editsaving 500k"""
     if not is_authorized(update.effective_user.id):
         return
     
@@ -146,7 +149,7 @@ async def edit_savings_command(update: Update, context: ContextTypes.DEFAULT_TYP
             await update.message.reply_text("❌ Cách dùng: /editsaving 500k (để đặt tiết kiệm thành 500k)")
             return
         
-        # Parse amount with k/m notation
+        # Parse amount with k/m/tr notation
         new_amount = parse_amount(args[0])
         
         # Update savings record
@@ -161,7 +164,7 @@ async def edit_savings_command(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(f"✅ Đã cập nhật tiết kiệm!\n💰 **Tiết kiệm hiện tại**: {format_currency(new_amount)}")
         
     except ValueError:
-        await update.message.reply_text("❌ Vui lòng nhập số hợp lệ: /editsaving 500k hoặc /editsaving 500000")
+        await update.message.reply_text("❌ Vui lòng nhập số hợp lệ: /editsaving 500k hoặc /editsaving 1.5tr")
 
 async def category_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show expenses by category: /category ăn uống"""
@@ -209,12 +212,7 @@ async def category_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             summary_lines.append(f"• {desc}: {format_currency(data['total'])}")
     
     # Add special emoji for different categories
-    if category == "mèo":
-        category_emoji = "🐱"
-    elif category == "nội thất":
-        category_emoji = "🪑"
-    else:
-        category_emoji = "📂"
+    category_emoji = get_category_emoji(category)
     
     summary_text = f"{category_emoji} **{category.title()}** - Tháng này\n\n"
     summary_text += "\n".join(summary_lines[:15])  # Limit to 15 items
@@ -238,6 +236,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • `100k cát mèo` - mèo cưng 🐱
 • `1.5m bàn ghế` - nội thất 🪑
 • `lương 3m` - lương tháng  
+
+**Subscriptions:**
+• `/subadd Spotify 33k` - thêm subscription
+• `/sublist` - xem subscriptions
+• `/subremove 1` - xóa subscription
+
+**Budget:**
+• `/budget ăn uống 1.5m` - đặt budget
+• `/budgetlist` - xem budget plans
 
 **Lệnh:**
 • `/list` - xem chi tiêu tháng này
@@ -263,29 +270,44 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     expenses = db.get_monthly_expenses(user_id, month_start)
     income = db.get_monthly_income(user_id, month_start)
     
-    # Generate summary with Gemini
+    # Get total budget
+    total_budget = get_total_budget(user_id)
+    
+    # Generate enhanced summary data for Gemini
     expense_data = expenses.data
     income_data = income.data
     
+    # Calculate totals
+    total_expenses = sum(float(exp["amount"]) for exp in expense_data)
+    total_income = sum(float(inc["amount"]) for inc in income_data)
+    
     summary = generate_monthly_summary(expense_data, income_data, today.month, today.year)
     
+    # Add budget information to summary
+    budget_summary = ""
+    if total_budget > 0:
+        remaining_budget = total_budget - total_expenses
+        if remaining_budget >= 0:
+            budget_summary = f"\n💰 **Budget tháng này**: {format_currency(total_budget)}\n✅ **Còn lại**: {format_currency(remaining_budget)}"
+        else:
+            budget_summary = f"\n💰 **Budget tháng này**: {format_currency(total_budget)}\n⚠️ **Vượt budget**: {format_currency(abs(remaining_budget))}"
+    
     if summary:
-        await update.message.reply_text(f"📊 **Báo cáo tháng {today.month}/{today.year}**\n\n{summary}")
+        full_summary = f"📊 **Báo cáo tháng {today.month}/{today.year}**\n\n{summary}{budget_summary}"
+        await update.message.reply_text(full_summary)
     else:
-        # Fallback summary
-        total_expenses = sum(Decimal(str(exp["amount"])) for exp in expense_data)
-        total_income = sum(Decimal(str(inc["amount"])) for inc in income_data)
+        # Fallback summary with budget
         net_savings = total_income - total_expenses
         
         fallback_summary = f"""
 📊 **Báo cáo tháng {today.month}/{today.year}**
 
-💵 Tổng thu nhập: {format_currency(float(total_income))}
-💰 Tổng chi tiêu: {format_currency(float(total_expenses))}
-📈 Tiết kiệm ròng: {format_currency(float(net_savings))}
+💵 Tổng thu nhập: {format_currency(total_income)}
+💰 Tổng chi tiêu: {format_currency(total_expenses)}
+📈 Tiết kiệm ròng: {format_currency(net_savings)}
 
 Chi tiêu: {len(expense_data)} lần
-Thu nhập: {len(income_data)} lần
+Thu nhập: {len(income_data)} lần{budget_summary}
         """
         await update.message.reply_text(fallback_summary)
 
@@ -305,6 +327,9 @@ async def list_expenses_command(update: Update, context: ContextTypes.DEFAULT_TY
     if not expenses.data:
         await update.message.reply_text(f"📝 Không có chi tiêu nào trong tháng {today.month}/{today.year}")
         return
+    
+    # Calculate remaining budget
+    remaining_budget = calculate_remaining_budget(user_id, month_start)
     
     # Group expenses by category
     expenses_by_category = defaultdict(list)
@@ -335,20 +360,19 @@ async def list_expenses_command(update: Update, context: ContextTypes.DEFAULT_TY
     
     for category, category_total in sorted_categories:
         # Add category emoji
-        if category == "mèo":
-            category_emoji = "🐱"
-        elif category == "nội thất":
-            category_emoji = "🪑"
-        elif category == "ăn uống":
-            category_emoji = "🍜"
-        elif category == "di chuyển":
-            category_emoji = "🚗"
-        elif category == "giải trí":
-            category_emoji = "🎮"
-        else:
-            category_emoji = "📂"
+        category_emoji = get_category_emoji(category)
         
-        response_text += f"{category_emoji} **{category.upper()}** - {format_currency(category_total)}\n"
+        # Get budget info if available
+        budget_info = ""
+        if category in remaining_budget:
+            budget_data = remaining_budget[category]
+            remaining = budget_data["remaining"]
+            if remaining >= 0:
+                budget_info = f" (còn lại: {format_currency(remaining)})"
+            else:
+                budget_info = f" (⚠️ vượt: {format_currency(abs(remaining))})"
+        
+        response_text += f"{category_emoji} **{category.upper()}** - {format_currency(category_total)}{budget_info}\n"
         
         # Sort items in category by date (newest first)
         items = sorted(expenses_by_category[category], key=lambda x: x["date"], reverse=True)
@@ -368,7 +392,18 @@ async def list_expenses_command(update: Update, context: ContextTypes.DEFAULT_TY
         current_chunk = f"📝 **Chi tiêu tháng {today.month}/{today.year}**\n\n"
         
         for category, category_total in sorted_categories:
-            category_text = f"{category_emoji} **{category.upper()}** - {format_currency(category_total)}\n"
+            # Split long messages with budget info
+            category_emoji = get_category_emoji(category)
+            budget_info = ""
+            if category in remaining_budget:
+                budget_data = remaining_budget[category]
+                remaining = budget_data["remaining"] 
+                if remaining >= 0:
+                    budget_info = f" (còn lại: {format_currency(remaining)})"
+                else:
+                    budget_info = f" (⚠️ vượt: {format_currency(abs(remaining))})"
+            
+            category_text = f"{category_emoji} **{category.upper()}** - {format_currency(category_total)}{budget_info}\n"
             items = sorted(expenses_by_category[category], key=lambda x: x["date"], reverse=True)
             
             for item in items:

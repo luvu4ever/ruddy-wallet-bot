@@ -51,6 +51,34 @@ class DatabaseManager:
     def delete_wishlist_item(self, item_id):
         """Delete wishlist item"""
         return self.supabase.table("wishlist").delete().eq("id", item_id).execute()
+    
+    def insert_subscription(self, subscription_data):
+        """Insert subscription"""
+        return self.supabase.table("subscriptions").insert(subscription_data).execute()
+    
+    def get_subscriptions(self, user_id):
+        """Get all subscriptions for user"""
+        return self.supabase.table("subscriptions").select("*").eq("user_id", user_id).execute()
+    
+    def delete_subscription(self, subscription_id):
+        """Delete subscription"""
+        return self.supabase.table("subscriptions").delete().eq("id", subscription_id).execute()
+    
+    def get_all_active_subscriptions(self):
+        """Get all subscriptions for monthly processing"""
+        return self.supabase.table("subscriptions").select("*").execute()
+    
+    def insert_budget_plan(self, budget_data):
+        """Insert or update budget plan"""
+        return self.supabase.table("budget_plans").upsert(budget_data).execute()
+    
+    def get_budget_plans(self, user_id):
+        """Get all budget plans for user"""
+        return self.supabase.table("budget_plans").select("*").eq("user_id", user_id).execute()
+    
+    def get_budget_plan_by_category(self, user_id, category):
+        """Get budget plan for specific category"""
+        return self.supabase.table("budget_plans").select("*").eq("user_id", user_id).eq("category", category).execute()
 
 # Global database instance
 db = DatabaseManager()
