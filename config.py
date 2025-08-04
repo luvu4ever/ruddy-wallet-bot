@@ -8,12 +8,8 @@ load_dotenv()
 EXPENSE_CATEGORIES = [
     "ăn uống",      # food & drinks
     "di chuyển",    # transportation  
-    "giải trí",     # entertainment
-    "mua sắm",      # shopping
     "hóa đơn",      # bills/utilities
-    "sức khỏe",     # health/medical
-    "giáo dục",     # education
-    "gia đình",     # family
+    "cá nhân",      # personal (entertainment + shopping)
     "mèo",          # cat expenses
     "nội thất",     # furniture/home decoration
     "khác"          # other

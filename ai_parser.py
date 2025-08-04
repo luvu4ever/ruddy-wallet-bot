@@ -53,6 +53,8 @@ IMPORTANT:
 - For transportation (xe ôm, grab, xăng), use "di chuyển"
 - For cat-related items (cát mèo, thức ăn mèo, thuốc mèo, đồ chơi mèo), use "mèo" category
 - For furniture items (bàn, ghế, tủ, giường, sofa, đèn, rèm, thảm), use "nội thất" category
+- For entertainment, shopping, personal items (movies, clothes, games, books), use "cá nhân" category
+- For bills, utilities, rent, insurance, use "hóa đơn" category
 - Convert k/m/tr notation: 50k=50000, 1.5m=1500000, 3tr=3000000, 2.5k=2500
 - Extract all amount+item pairs from the message
 

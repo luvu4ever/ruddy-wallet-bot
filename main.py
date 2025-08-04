@@ -63,8 +63,7 @@ def main():
         # Start the bot
         print("🤖 Simplified Personal Finance Bot is starting...")
         print("📂 Categories:", ", ".join([
-            "ăn uống", "di chuyển", "giải trí", "mua sắm", 
-            "hóa đơn", "sức khỏe", "giáo dục", "gia đình", "mèo", "nội thất", "khác"
+            "ăn uống", "di chuyển", "hóa đơn", "cá nhân", "mèo", "nội thất", "khác"
         ]))
         print("💰 K/M/TR notation: 50k=50,000đ, 1.5m=1,500,000đ, 3tr=3,000,000đ")
         print("📝 Simple wishlist: add, view, remove")

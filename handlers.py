@@ -324,7 +324,7 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "user_id": user_id,
                     "amount": subscription["amount"],
                     "description": f"{subscription['service_name']} (subscription)",
-                    "category": "khác",
+                    "category": "cá nhân",  # Subscriptions go to personal category
                     "date": month_start.isoformat()
                 }
                 
