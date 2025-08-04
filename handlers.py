@@ -41,7 +41,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 **Lệnh:**
 • /list - Xem chi tiêu tháng này
-• /summary - Báo cáo tháng
+• /summary - Báo cáo tháng này
+• /summary 8/2025 - Báo cáo tháng 8/2025
 • /budget ăn uống 1.5m - Đặt budget
 • /sublist - Xem subscriptions
 • /saving - Xem tiết kiệm
@@ -248,7 +249,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 **Lệnh:**
 • `/list` - xem chi tiêu tháng này
-• `/summary` - báo cáo tháng
+• `/summary` - báo cáo tháng này
+• `/summary 8/2025` - báo cáo tháng 8/2025
 • `/saving` - xem tiết kiệm
 • `/category` - xem danh mục
 • `/wishlist` - xem wishlist
@@ -258,22 +260,88 @@ AI tự động phân loại! 🤖
     await update.message.reply_text(help_text)
 
 async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Generate monthly summary: /summary or /summary 8/2025"""
     if not is_authorized(update.effective_user.id):
         return
     
     user_id = update.effective_user.id
+    args = context.args
     
-    # Get this month's expenses and income
-    today = datetime.now()
-    month_start = today.replace(day=1).date()
+    # Parse date argument
+    if args:
+        try:
+            # Parse format: 8/2025 or 08/2025
+            date_str = args[0]
+            if '/' in date_str:
+                month_str, year_str = date_str.split('/')
+                target_month = int(month_str)
+                target_year = int(year_str)
+            else:
+                await update.message.reply_text("❌ Format: /summary 8/2025 hoặc /summary (tháng này)")
+                return
+                
+            if target_month < 1 or target_month > 12:
+                await update.message.reply_text("❌ Tháng phải từ 1-12")
+                return
+                
+        except ValueError:
+            await update.message.reply_text("❌ Format: /summary 8/2025 hoặc /summary (tháng này)")
+            return
+    else:
+        # Use current month
+        today = datetime.now()
+        target_month = today.month
+        target_year = today.year
     
+    # Calculate month boundaries
+    month_start = date(target_year, target_month, 1)
+    if target_month == 12:
+        month_end = date(target_year + 1, 1, 1)
+    else:
+        month_end = date(target_year, target_month + 1, 1)
+    
+    # Get expenses and income for the target month
     expenses = db.get_monthly_expenses(user_id, month_start)
     income = db.get_monthly_income(user_id, month_start)
+    
+    # Auto-add subscriptions to expenses for this month
+    subscriptions = db.get_subscriptions(user_id)
+    subscription_expenses = []
+    
+    if subscriptions.data:
+        for subscription in subscriptions.data:
+            # Check if subscription expense already exists for this month
+            existing_sub_expense = None
+            for expense in expenses.data:
+                if (expense["description"] == f"{subscription['service_name']} (subscription)" and
+                    expense["date"][:7] == f"{target_year}-{target_month:02d}"):
+                    existing_sub_expense = expense
+                    break
+            
+            # If not exists, add it
+            if not existing_sub_expense:
+                subscription_expense = {
+                    "user_id": user_id,
+                    "amount": subscription["amount"],
+                    "description": f"{subscription['service_name']} (subscription)",
+                    "category": "khác",
+                    "date": month_start.isoformat()
+                }
+                
+                # Add to database
+                db.insert_expense(subscription_expense)
+                
+                # Add to current expense list for summary calculation
+                subscription_expenses.append(subscription_expense)
+    
+    # Refresh expenses data after adding subscriptions
+    if subscription_expenses:
+        expenses = db.get_monthly_expenses(user_id, month_start)
     
     # Get total budget
     total_budget = get_total_budget(user_id)
     
-    # Generate enhanced summary data for Gemini
+    # Generate enhanced summary data
     expense_data = expenses.data
     income_data = income.data
     
@@ -281,7 +349,13 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_expenses = sum(float(exp["amount"]) for exp in expense_data)
     total_income = sum(float(inc["amount"]) for inc in income_data)
     
-    summary = generate_monthly_summary(expense_data, income_data, today.month, today.year)
+    # Show added subscriptions
+    subscription_info = ""
+    if subscription_expenses:
+        sub_names = [sub["description"].replace(" (subscription)", "") for sub in subscription_expenses]
+        subscription_info = f"\n🔄 **Đã thêm subscriptions**: {', '.join(sub_names)}"
+    
+    summary = generate_monthly_summary(expense_data, income_data, target_month, target_year)
     
     # Add budget information to summary
     budget_summary = ""
@@ -293,14 +367,14 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             budget_summary = f"\n💰 **Budget tháng này**: {format_currency(total_budget)}\n⚠️ **Vượt budget**: {format_currency(abs(remaining_budget))}"
     
     if summary:
-        full_summary = f"📊 **Báo cáo tháng {today.month}/{today.year}**\n\n{summary}{budget_summary}"
+        full_summary = f"📊 **Báo cáo tháng {target_month}/{target_year}**{subscription_info}\n\n{summary}{budget_summary}"
         await update.message.reply_text(full_summary)
     else:
         # Fallback summary with budget
         net_savings = total_income - total_expenses
         
         fallback_summary = f"""
-📊 **Báo cáo tháng {today.month}/{today.year}**
+📊 **Báo cáo tháng {target_month}/{target_year}**{subscription_info}
 
 💵 Tổng thu nhập: {format_currency(total_income)}
 💰 Tổng chi tiêu: {format_currency(total_expenses)}

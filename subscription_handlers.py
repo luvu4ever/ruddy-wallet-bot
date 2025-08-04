@@ -30,7 +30,7 @@ async def subscription_add_command(update: Update, context: ContextTypes.DEFAULT
         }
         
         db.insert_subscription(subscription_data)
-        await update.message.reply_text(f"✅ Đã thêm subscription!\n📅 **{service_name}**: {format_currency(amount)}/tháng")
+        await update.message.reply_text(f"✅ Đã thêm subscription!\n📅 **{service_name}**: {format_currency(amount)}/tháng\n\n💡 Subscription sẽ tự động được thêm khi tính /summary")
         
     except ValueError:
         await update.message.reply_text("❌ Số tiền không hợp lệ. Ví dụ: /subadd Spotify 33k hoặc /subadd Premium 1.5tr")
@@ -46,7 +46,7 @@ async def subscription_list_command(update: Update, context: ContextTypes.DEFAUL
     subscriptions_data = db.get_subscriptions(user_id)
     
     if not subscriptions_data.data:
-        await update.message.reply_text("📅 Không có subscription nào!\n\nDùng /subadd để thêm subscription tự động hàng tháng")
+        await update.message.reply_text("📅 Không có subscription nào!\n\nDùng /subadd để thêm subscription\nSubscription sẽ tự động được thêm khi tính /summary")
         return
     
     # Sort by amount (high to low)
@@ -65,6 +65,7 @@ async def subscription_list_command(update: Update, context: ContextTypes.DEFAUL
     
     subscription_text += f"\n💰 **Tổng/tháng**: {format_currency(total_monthly)}"
     subscription_text += f"\n📊 **Tổng/năm**: {format_currency(total_monthly * 12)}"
+    subscription_text += f"\n\n💡 **Tự động thêm khi tính /summary**"
     
     await update.message.reply_text(subscription_text)
 
@@ -103,35 +104,3 @@ async def subscription_remove_command(update: Update, context: ContextTypes.DEFA
         
     except ValueError:
         await update.message.reply_text("❌ Vui lòng nhập số hợp lệ: /subremove 1")
-
-def process_monthly_subscriptions():
-    """Process all subscriptions (run monthly)"""
-    try:
-        # Get all subscriptions
-        all_subscriptions = db.get_all_active_subscriptions()
-        
-        if not all_subscriptions.data:
-            print("📅 No subscriptions to process")
-            return
-        
-        today = date.today()
-        processed_count = 0
-        
-        for subscription in all_subscriptions.data:
-            # Create expense record with default category "khác"
-            expense_data = {
-                "user_id": subscription["user_id"],
-                "amount": subscription["amount"],
-                "description": f"{subscription['service_name']} (subscription)",
-                "category": "khác",  # Default category for subscriptions
-                "date": today.isoformat()
-            }
-            
-            # Insert expense
-            db.insert_expense(expense_data)
-            processed_count += 1
-        
-        print(f"✅ Processed {processed_count} monthly subscriptions")
-        
-    except Exception as e:
-        print(f"❌ Error processing subscriptions: {e}")
