@@ -21,8 +21,7 @@ Message: "{text}"
 Detect these message types and extract data:
 
 1. EXPENSES: "50k bún bò huế", "700k thịt 200k cà phê", "100k cát mèo", "1.5m sofa", "3tr renovation" or "spent 50k on gas"
-2. SALARY: "lương 3000k", "lương 3m", "lương 3tr", "salary 3000k" or "got salary 2500k"  
-3. RANDOM INCOME: "thu nhập thêm 500k", "random income 500k" or "side job 200k"
+2. Note: Income should now be handled by /income command, not through message parsing
 
 Available categories: {categories_str}
 
@@ -35,17 +34,12 @@ IMPORTANT CURRENCY PARSING:
 
 Return format:
 {{
-    "type": "expenses|salary|random_income",
+    "type": "expenses",
     "expenses": [
         {{"amount": 50000, "description": "bún bò huế", "category": "ăn uống"}},
         {{"amount": 100000, "description": "cát mèo", "category": "mèo"}},
         {{"amount": 1500000, "description": "sofa da", "category": "công trình"}}
-    ],
-    "income": {{
-        "amount": 3000000,
-        "type": "salary|random",
-        "description": "monthly salary"
-    }}
+    ]
 }}
 
 CATEGORIZATION RULES:
@@ -53,7 +47,7 @@ CATEGORIZATION RULES:
 - Convert k/m/tr notation: 50k=50000, 1.5m=1500000, 3tr=3000000, 2.5k=2500
 - Extract all amount+item pairs from the message
 
-Return empty arrays/objects for unused fields.
+Return empty arrays/objects for unused fields. Income should use /income command instead.
 """
 
     try:
