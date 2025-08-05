@@ -5,6 +5,141 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # =============================================================================
+# TEXT CONFIGURATION - CHANGE MESSAGES HERE
+# =============================================================================
+BOT_MESSAGES = {
+    "welcome": """
+🤖 **Chào mừng đến với Bot Tài chính cá nhân!**
+
+**Cách sử dụng:**
+• **Chi tiêu**: "50k bún bò huế", "100k cát mèo", "1.5m sofa"
+• **Lương**: "lương 3m" 
+• **Thu nhập thêm**: "thu nhập thêm 500k"
+
+**Định dạng tiền:**
+• 50k = 50,000đ | 1.5m = 1,500,000đ | 3tr = 3,000,000đ
+
+**Lệnh:**
+• /list - Xem chi tiêu tháng này
+• /summary - Báo cáo tháng này
+• /summary 8/2025 - Báo cáo tháng 8/2025
+• /budget ăn uống 1.5m - Đặt budget
+• /sublist - Xem subscriptions
+• /saving - Xem tiết kiệm
+• /wishlist - Xem wishlist
+• /help - Hướng dẫn
+
+AI tự động phân loại! 🤖🐾🎮
+Subscriptions tự động hàng tháng! 📅
+    """,
+    
+    "help": """
+💰 **Hướng dẫn nhanh**
+
+**Ghi chi tiêu:**
+• `50k bún bò huế` - ăn uống
+• `100k cát mèo` - mèo cưng 🐾
+• `1.5m sofa` - công trình 🏗️
+• `50k đèn nhỏ` - linh tinh 🔧
+• `lương 3m` - lương tháng  
+
+**Subscriptions:**
+• `/subadd Spotify 33k` - thêm subscription
+• `/sublist` - xem subscriptions
+• `/subremove 1` - xóa subscription
+
+**Budget:**
+• `/budget ăn uống 1.5m` - đặt budget
+• `/budgetlist` - xem budget plans
+
+**Lệnh:**
+• `/list` - xem chi tiêu tháng này
+• `/summary` - báo cáo tháng này
+• `/summary 8/2025` - báo cáo tháng 8/2025
+• `/saving` - xem tiết kiệm
+• `/category` - xem danh mục
+• `/wishlist` - xem wishlist
+
+AI tự động phân loại! 🤖
+    """,
+    
+    "unknown_message": "🤔 Tôi không hiểu tin nhắn này. Thử:\n• '50k bún bò huế' (chi tiêu ăn uống)\n• '100k cát mèo' (chi phí mèo)\n• '1.5m sofa' (công trình) hoặc '50k đèn nhỏ' (linh tinh)\n• 'lương 3m' hoặc 'lương 3tr' (lương tháng)\n• 'thu nhập thêm 500k' (tiền thêm)",
+    
+    "unauthorized": "❌ Sorry, you're not authorized to use this bot.",
+    
+    "no_expenses_this_month": "📝 Không có chi tiêu nào trong tháng {month}/{year}",
+    
+    "no_budget": "💰 Chưa có budget plan nào!\n\nDùng /budget [category] [amount] để đặt budget\nVí dụ: /budget ăn uống 1.5m",
+    
+    "no_subscriptions": "📅 Không có subscription nào!\n\nDùng /subadd để thêm subscription\nSubscription sẽ tự động được thêm khi tính /summary",
+    
+    "no_wishlist": "📝 Wishlist trống!\n\nDùng /wishadd [tên] [giá] để thêm",
+    
+    "savings_current": "💰 **Tiết kiệm hiện tại**: {amount}\n📅 Cập nhật: {date}",
+    
+    "savings_none": "💰 **Tiết kiệm hiện tại**: 0đ\n\nDùng /editsaving 500k để đặt số tiền tiết kiệm!",
+    
+    "subscription_added": "✅ Đã thêm subscription!\n📅 **{name}**: {amount}/tháng\n\n💡 Subscription sẽ tự động được thêm khi tính /summary",
+    
+    "budget_set": "✅ Đã đặt budget!\n{emoji} **{category}**: {amount}/tháng",
+    
+    "wishlist_added": "✅ Đã thêm vào wishlist!\n🛍️ **{name}**: {amount}",
+    
+    "format_errors": {
+        "summary_date": "❌ Format: /summary 8/2025 hoặc /summary (tháng này)",
+        "month_range": "❌ Tháng phải từ 1-12",
+        "budget_usage": "❌ Cách dùng: /budget ăn uống 1.5m\nhoặc /budget mèo 500k\nhoặc /budget an uong 1tr (gần giống cũng được)",
+        "invalid_amount": "❌ Số tiền không hợp lệ. Ví dụ: /budget ăn uống 1.5m",
+        "subscription_usage": "❌ Cách dùng: /subadd Spotify 33k\nhoặc /subadd Netflix 150k\nhoặc /subadd Premium 1.5tr",
+        "wishlist_usage": "❌ Cách dùng: /wishadd iPhone 15 Pro 25m",
+        "savings_usage": "❌ Cách dùng: /editsaving 500k (để đặt tiết kiệm thành 500k)",
+        "invalid_number": "❌ Vui lòng nhập số hợp lệ: {example}"
+    }
+}
+
+# Console startup messages
+STARTUP_MESSAGES = {
+    "starting": "🤖 Simplified Personal Finance Bot is starting...",
+    "categories": "📂 Categories: {categories}",
+    "notation": "💰 K/M/TR notation: 50k=50,000đ, 1.5m=1,500,000đ, 3tr=3,000,000đ",
+    "wishlist": "📝 Simple wishlist: add, view, remove",
+    "subscriptions": "📅 Subscription feature: auto-added when calculating summary",
+    "budget": "💰 Budget planning: set spending limits per category",
+    "summary": "📊 Summary with date: /summary or /summary 8/2025",
+    "list_feature": "📝 New feature: /list command to view all monthly expenses by category"
+}
+
+# Error messages
+ERROR_MESSAGES = {
+    "bot_conflict": "❌ Bot conflict error: Another bot instance is running!",
+    "solutions": "🔧 Solutions:\n1. Stop other bot instances\n2. Wait 30 seconds and try again\n3. Check if bot is running elsewhere",
+    "unexpected": "❌ Unexpected error: {error}",
+    "restarting": "🔧 Restarting in 30 seconds..."
+}
+
+# Functions to get messages
+def get_message(key, **kwargs):
+    """Get a configured message with optional formatting"""
+    message = BOT_MESSAGES.get(key, f"Message '{key}' not found")
+    if kwargs:
+        return message.format(**kwargs)
+    return message
+
+def get_startup_message(key, **kwargs):
+    """Get a startup message with optional formatting"""
+    message = STARTUP_MESSAGES.get(key, f"Startup message '{key}' not found")
+    if kwargs:
+        return message.format(**kwargs)
+    return message
+
+def get_error_message(key, **kwargs):
+    """Get an error message with optional formatting"""
+    message = ERROR_MESSAGES.get(key, f"Error message '{key}' not found")
+    if kwargs:
+        return message.format(**kwargs)
+    return message
+
+# =============================================================================
 # CATEGORY CONFIGURATION - CHANGE EVERYTHING HERE
 # =============================================================================
 CATEGORIES = {
@@ -27,13 +162,13 @@ CATEGORIES = {
         "examples": ["tiền điện", "tiền nước", "thuê nhà"]
     },
     "cá nhân": {
-        "emoji": "🛍️",
+        "emoji": "🎮",
         "description": "personal (entertainment + shopping)",
         "ai_keywords": ["entertainment", "shopping", "clothes", "movie", "game", "book", "áo", "quần", "phim"],
         "examples": ["áo sơ mi", "xem phim", "mua sách"]
     },
     "mèo": {
-        "emoji": "🐱",
+        "emoji": "🐾",
         "description": "cat expenses",
         "ai_keywords": ["cat", "pet", "mèo", "cát mèo", "thức ăn mèo", "thuốc mèo"],
         "examples": ["cát mèo", "thức ăn mèo", "thuốc mèo"]

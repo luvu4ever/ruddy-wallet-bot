@@ -5,11 +5,13 @@ from collections import defaultdict
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from config import TELEGRAM_BOT_TOKEN
 from database import db
 from ai_parser import parse_message_with_gemini, generate_monthly_summary
 from utils import is_authorized, format_currency, parse_amount
-from config import EXPENSE_CATEGORIES, get_category_emoji, get_category_list_display, get_all_category_info
+from config import (
+    EXPENSE_CATEGORIES, get_category_emoji, get_category_list_display, 
+    get_all_category_info, get_message
+)
 from budget_handlers import calculate_remaining_budget, get_total_budget
 
 # Set up logging
@@ -17,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update.effective_user.id):
-        await update.message.reply_text("❌ Sorry, you're not authorized to use this bot.")
+        await update.message.reply_text(get_message("unauthorized"))
         return
     
     # Register user in database
@@ -28,36 +30,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
     
     db.register_user(user_data)
-    
-    welcome_text = """
-🤖 **Chào mừng đến với Bot Tài chính cá nhân!**
-
-**Cách sử dụng:**
-• **Chi tiêu**: "50k bún bò huế", "100k cát mèo", "1.5m bàn ghế"
-• **Lương**: "lương 3m" 
-• **Thu nhập thêm**: "thu nhập thêm 500k"
-
-**Định dạng tiền:**
-• 50k = 50,000đ | 1.5m = 1,500,000đ | 3tr = 3,000,000đ
-
-**Lệnh:**
-• /list - Xem chi tiêu tháng này
-• /summary - Báo cáo tháng này
-• /summary 8/2025 - Báo cáo tháng 8/2025
-• /budget ăn uống 1.5m - Đặt budget
-• /sublist - Xem subscriptions
-• /saving - Xem tiết kiệm
-• /wishlist - Xem wishlist
-• /help - Hướng dẫn
-
-AI tự động phân loại! 🤖🐱🪑
-Subscriptions tự động hàng tháng! 📅
-    """
-    await update.message.reply_text(welcome_text)
+    await update.message.reply_text(get_message("welcome"))
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update.effective_user.id):
-        await update.message.reply_text("❌ Not authorized.")
+        await update.message.reply_text(get_message("unauthorized"))
         return
     
     user_id = update.effective_user.id
@@ -115,7 +92,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             responses.append(f"🎉 Thu nhập thêm: {format_currency(income_data['amount'])}")
     
     else:
-        responses.append("🤔 Tôi không hiểu tin nhắn này. Thử:\n• '50k bún bò huế' (chi tiêu ăn uống)\n• '100k cát mèo' (chi phí mèo)\n• '1.5m sofa' (công trình) hoặc '50k đèn nhỏ' (linh tinh)\n• 'lương 3m' hoặc 'lương 3tr' (lương tháng)\n• 'thu nhập thêm 500k' (tiền thêm)")
+        responses.append(get_message("unknown_message"))
     
     if responses:
         await update.message.reply_text("\n".join(responses))
@@ -133,9 +110,11 @@ async def savings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if savings_data.data:
         current_savings = float(savings_data.data[0]["current_amount"])
         last_updated = savings_data.data[0]["last_updated"]
-        await update.message.reply_text(f"💰 **Tiết kiệm hiện tại**: {format_currency(current_savings)}\n📅 Cập nhật: {last_updated[:10]}")
+        await update.message.reply_text(get_message("savings_current", 
+            amount=format_currency(current_savings), 
+            date=last_updated[:10]))
     else:
-        await update.message.reply_text("💰 **Tiết kiệm hiện tại**: 0đ\n\nDùng /editsaving 500k để đặt số tiền tiết kiệm!")
+        await update.message.reply_text(get_message("savings_none"))
 
 async def edit_savings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Set savings to specific amount: /editsaving 500k"""
@@ -148,7 +127,7 @@ async def edit_savings_command(update: Update, context: ContextTypes.DEFAULT_TYP
         # Get amount from command
         args = context.args
         if not args:
-            await update.message.reply_text("❌ Cách dùng: /editsaving 500k (để đặt tiết kiệm thành 500k)")
+            await update.message.reply_text(get_message("format_errors")["savings_usage"])
             return
         
         # Parse amount with k/m/tr notation
@@ -166,7 +145,8 @@ async def edit_savings_command(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(f"✅ Đã cập nhật tiết kiệm!\n💰 **Tiết kiệm hiện tại**: {format_currency(new_amount)}")
         
     except ValueError:
-        await update.message.reply_text("❌ Vui lòng nhập số hợp lệ: /editsaving 500k hoặc /editsaving 1.5tr")
+        await update.message.reply_text(get_message("format_errors")["invalid_number"].format(
+            example="/editsaving 500k hoặc /editsaving 1.5tr"))
 
 async def category_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show expenses by category: /category ăn uống"""
@@ -230,36 +210,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update.effective_user.id):
         return
     
-    help_text = """
-💰 **Hướng dẫn nhanh**
-
-**Ghi chi tiêu:**
-• `50k bún bò huế` - ăn uống
-• `100k cát mèo` - mèo cưng 🐱
-• `1.5m sofa` - công trình 🏗️
-• `50k đèn nhỏ` - linh tinh 🔧
-• `lương 3m` - lương tháng  
-
-**Subscriptions:**
-• `/subadd Spotify 33k` - thêm subscription
-• `/sublist` - xem subscriptions
-• `/subremove 1` - xóa subscription
-
-**Budget:**
-• `/budget ăn uống 1.5m` - đặt budget
-• `/budgetlist` - xem budget plans
-
-**Lệnh:**
-• `/list` - xem chi tiêu tháng này
-• `/summary` - báo cáo tháng này
-• `/summary 8/2025` - báo cáo tháng 8/2025
-• `/saving` - xem tiết kiệm
-• `/category` - xem danh mục
-• `/wishlist` - xem wishlist
-
-AI tự động phân loại! 🤖
-    """
-    await update.message.reply_text(help_text)
+    await update.message.reply_text(get_message("help"))
 
 async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Generate monthly summary: /summary or /summary 8/2025"""
@@ -279,15 +230,15 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 target_month = int(month_str)
                 target_year = int(year_str)
             else:
-                await update.message.reply_text("❌ Format: /summary 8/2025 hoặc /summary (tháng này)")
+                await update.message.reply_text(get_message("format_errors")["summary_date"])
                 return
                 
             if target_month < 1 or target_month > 12:
-                await update.message.reply_text("❌ Tháng phải từ 1-12")
+                await update.message.reply_text(get_message("format_errors")["month_range"])
                 return
                 
         except ValueError:
-            await update.message.reply_text("❌ Format: /summary 8/2025 hoặc /summary (tháng này)")
+            await update.message.reply_text(get_message("format_errors")["summary_date"])
             return
     else:
         # Use current month
@@ -401,7 +352,8 @@ async def list_expenses_command(update: Update, context: ContextTypes.DEFAULT_TY
     expenses = db.get_monthly_expenses(user_id, month_start)
     
     if not expenses.data:
-        await update.message.reply_text(f"📝 Không có chi tiêu nào trong tháng {today.month}/{today.year}")
+        await update.message.reply_text(get_message("no_expenses_this_month", 
+            month=today.month, year=today.year))
         return
     
     # Calculate remaining budget
