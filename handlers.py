@@ -10,7 +10,7 @@ from ai_parser import parse_message_with_gemini, generate_monthly_summary
 from utils import is_authorized, format_currency, parse_amount
 from config import (
     EXPENSE_CATEGORIES, get_category_emoji, get_category_list_display, 
-    get_all_category_info, get_message
+    get_all_category_info, get_message, DEFAULT_SUBSCRIPTION_CATEGORY
 )
 from budget_handlers import calculate_remaining_budget, get_total_budget
 
@@ -277,7 +277,7 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "user_id": user_id,
                     "amount": subscription["amount"],
                     "description": f"{subscription['service_name']} (subscription)",
-                    "category": "cá nhân",  # Subscriptions go to personal category
+                    "category": DEFAULT_SUBSCRIPTION_CATEGORY,
                     "date": month_start.isoformat()
                 }
                 

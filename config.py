@@ -5,6 +5,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # =============================================================================
+# BUSINESS LOGIC CONFIGURATION
+# =============================================================================
+
+# Default category for subscriptions when auto-added in summary
+DEFAULT_SUBSCRIPTION_CATEGORY = "cá nhân"
+
+# =============================================================================
 # TEXT CONFIGURATION - CHANGE MESSAGES HERE
 # =============================================================================
 BOT_MESSAGES = {

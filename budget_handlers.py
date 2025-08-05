@@ -93,8 +93,6 @@ async def budget_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     await update.message.reply_text(budget_text)
 
-        # Remove the get_category_emoji function - now imported from categories
-
 def calculate_remaining_budget(user_id, month_start):
     """Calculate remaining budget for all categories"""
     try:
