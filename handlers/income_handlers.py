@@ -3,12 +3,15 @@ from telegram.ext import ContextTypes
 from datetime import datetime, date
 
 from database import db
-from utils import is_authorized, format_currency, parse_amount
+from utils import (
+    check_authorization, send_formatted_message, safe_parse_amount,
+    format_currency, validate_args
+)
 from config import INCOME_TYPES, get_income_types_list, get_income_emoji, get_message
 
 async def income_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Add income: /income construction 2m xây nhà or /income salary 3m lương tháng"""
-    if not is_authorized(update.effective_user.id):
+    if not await check_authorization(update):
         return
     
     user_id = update.effective_user.id
@@ -17,45 +20,49 @@ async def income_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Show income types if no arguments
     if not args:
         income_types_text = get_income_types_list()
-        await update.message.reply_text(get_message("income_types", income_types=income_types_text))
+        message = get_message("income_types", income_types=income_types_text)
+        await send_formatted_message(update, message)
         return
     
-    if len(args) < 2:
-        await update.message.reply_text(get_message("format_errors")["income_usage"])
+    if not validate_args(args, 2):
+        await send_formatted_message(update, get_message("format_errors")["income_usage"])
         return
     
-    try:
-        # Parse arguments: type amount [description]
-        income_type = args[0].lower()
-        amount = parse_amount(args[1])
-        description = " ".join(args[2:]) if len(args) > 2 else f"{income_type} income"
-        
-        # Validate income type
-        if income_type not in INCOME_TYPES:
-            await update.message.reply_text(get_message("format_errors")["invalid_income_type"].format(type=income_type))
-            return
-        
-        # Create income record
-        income_data = {
-            "user_id": user_id,
-            "amount": amount,
-            "income_type": income_type,
-            "description": description,
-            "date": date.today().isoformat()
-        }
-        
-        db.insert_income(income_data)
-        
-        # Get emoji and send confirmation
-        emoji = get_income_emoji(income_type)
-        await update.message.reply_text(get_message("income_added", 
-            emoji=emoji, 
-            type=income_type, 
-            amount=format_currency(amount), 
-            description=description))
-        
-    except ValueError:
-        await update.message.reply_text(get_message("format_errors")["invalid_amount"])
+    # Parse arguments: type amount [description]
+    income_type = args[0].lower()
+    success, amount, error_msg = safe_parse_amount(args[1])
+    
+    if not success:
+        await send_formatted_message(update, get_message("format_errors")["invalid_amount"])
+        return
+    
+    description = " ".join(args[2:]) if len(args) > 2 else f"{income_type} income"
+    
+    # Validate income type
+    if income_type not in INCOME_TYPES:
+        message = get_message("format_errors")["invalid_income_type"].format(type=income_type)
+        await send_formatted_message(update, message)
+        return
+    
+    # Create income record
+    income_data = {
+        "user_id": user_id,
+        "amount": amount,
+        "income_type": income_type,
+        "description": description,
+        "date": date.today().isoformat()
+    }
+    
+    db.insert_income(income_data)
+    
+    # Get emoji and send confirmation
+    emoji = get_income_emoji(income_type)
+    message = get_message("income_added", 
+        emoji=emoji, 
+        type=income_type, 
+        amount=format_currency(amount), 
+        description=description)
+    await send_formatted_message(update, message)
 
 def calculate_income_by_type(user_id, month_start):
     """Calculate income separated by construction vs general"""

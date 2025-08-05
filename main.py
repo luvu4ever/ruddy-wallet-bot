@@ -1,9 +1,8 @@
-from income_handlers import (
-    income_command
-)
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from telegram.error import Conflict
 from config import TELEGRAM_BOT_TOKEN, get_category_list_display, get_startup_message, get_error_message
+
+# Import all handlers from the handlers package
 from handlers import (
     start,
     handle_message,
@@ -12,22 +11,18 @@ from handlers import (
     category_command,
     help_command,
     monthly_summary,
-    list_expenses_command
-)
-from wishlist_handlers import (
+    list_expenses_command,
     wishlist_add_command,
     wishlist_view_command,
-    wishlist_remove_command
-)
-from subscription_handlers import (
+    wishlist_remove_command,
     subscription_add_command,
     subscription_list_command,
-    subscription_remove_command
-)
-from budget_handlers import (
+    subscription_remove_command,
     budget_command,
-    budget_list_command
+    budget_list_command,
+    income_command
 )
+
 import time
 import sys
 
