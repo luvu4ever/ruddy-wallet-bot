@@ -3,35 +3,85 @@ from telegram.ext import ContextTypes
 
 from database import db
 from utils import is_authorized, format_currency, parse_amount
+from config import get_priority_emoji, get_priority_name, get_message
 
 async def wishlist_add_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Add item to wishlist: /wishadd iPhone 15 Pro 25m"""
+    """Add item to wishlist: /wishadd iPhone 25m prio:1 or /wishadd iPhone prio:2"""
     if not is_authorized(update.effective_user.id):
         return
     
     user_id = update.effective_user.id
     args = context.args
     
-    if len(args) < 2:
-        await update.message.reply_text("❌ Cách dùng: /wishadd iPhone 15 Pro 25m")
+    if not args:
+        await update.message.reply_text(get_message("format_errors")["wishlist_usage"])
         return
     
     try:
-        # Last argument should be price
-        estimated_price = parse_amount(args[-1])
-        item_name = " ".join(args[:-1])
+        # Parse arguments
+        priority = 3  # Default priority (lowest)
+        estimated_price = None  # Default no price
         
+        # Check for priority in arguments
+        filtered_args = []
+        for arg in args:
+            if arg.lower().startswith('prio:'):
+                try:
+                    prio_value = int(arg.split(':')[1])
+                    if 1 <= prio_value <= 3:
+                        priority = prio_value
+                    else:
+                        await update.message.reply_text("❌ Priority phải từ 1-3 (1=cao🚨, 2=trung bình⚠️, 3=thấp🌿)")
+                        return
+                except (ValueError, IndexError):
+                    await update.message.reply_text("❌ Format priority: prio:1, prio:2, hoặc prio:3")
+                    return
+            else:
+                filtered_args.append(arg)
+        
+        if not filtered_args:
+            await update.message.reply_text(get_message("format_errors")["wishlist_usage"])
+            return
+        
+        # Try to parse price from last argument
+        item_name = ""
+        if len(filtered_args) >= 2:
+            # Check if last argument looks like a price
+            last_arg = filtered_args[-1]
+            try:
+                estimated_price = parse_amount(last_arg)
+                item_name = " ".join(filtered_args[:-1])
+            except ValueError:
+                # Last argument is not a price, treat all as item name
+                item_name = " ".join(filtered_args)
+        else:
+            # Only one argument, treat as item name
+            item_name = " ".join(filtered_args)
+        
+        # Create wishlist record
         wishlist_data = {
             "user_id": user_id,
             "item_name": item_name,
-            "estimated_price": estimated_price
+            "estimated_price": estimated_price,
+            "priority": priority,
+            "purchased": False
         }
         
         db.insert_wishlist_item(wishlist_data)
-        await update.message.reply_text(f"✅ Đã thêm vào wishlist!\n🛍️ **{item_name}**: {format_currency(estimated_price)}")
         
-    except ValueError:
-        await update.message.reply_text("❌ Giá phải là số. Ví dụ: /wishadd iPhone 15 25m")
+        # Format response
+        priority_emoji = get_priority_emoji(priority)
+        priority_name = get_priority_name(priority)
+        price_text = format_currency(estimated_price) if estimated_price else "Chưa có giá"
+        priority_text = f"\n{priority_emoji} Priority: {priority_name}"
+        
+        await update.message.reply_text(get_message("wishlist_added", 
+            name=item_name, 
+            price_text=price_text, 
+            priority_text=priority_text))
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Lỗi: {str(e)}")
 
 async def wishlist_view_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """View wishlist: /wishlist"""
@@ -40,28 +90,63 @@ async def wishlist_view_command(update: Update, context: ContextTypes.DEFAULT_TY
     
     user_id = update.effective_user.id
     
-    # Get all wishlist items
+    # Get all wishlist items that are not purchased
     wishlist_data = db.get_wishlist(user_id)
     
     if not wishlist_data.data:
-        await update.message.reply_text("📝 Wishlist trống!\n\nDùng /wishadd [tên] [giá] để thêm")
+        await update.message.reply_text(get_message("no_wishlist"))
         return
     
-    # Sort by price (high to low)
-    items = sorted(wishlist_data.data, key=lambda x: x.get("estimated_price", 0), reverse=True)
+    # Filter out purchased items
+    active_items = [item for item in wishlist_data.data if not item.get("purchased", False)]
+    
+    if not active_items:
+        await update.message.reply_text(get_message("no_wishlist"))
+        return
+    
+    # Group by priority and sort by price within each priority
+    items_by_priority = {1: [], 2: [], 3: []}
+    
+    for item in active_items:
+        priority = item.get("priority", 3)
+        items_by_priority[priority].append(item)
+    
+    # Sort each priority group by price (highest first), then by name
+    for priority in items_by_priority:
+        items_by_priority[priority].sort(key=lambda x: (-(x.get("estimated_price") or 0), x["item_name"]))
     
     wishlist_text = "🛍️ **Wishlist của bạn:**\n\n"
     total_wishlist = 0
+    item_count = 0
     
-    for i, item in enumerate(items, 1):
-        name = item["item_name"]
-        price = item.get("estimated_price", 0)
+    # Display by priority order (1=high, 2=medium, 3=low)
+    for priority in [1, 2, 3]:
+        items = items_by_priority[priority]
+        if not items:
+            continue
         
-        wishlist_text += f"{i}. **{name}**: {format_currency(price)}\n"
-        total_wishlist += price
+        priority_emoji = get_priority_emoji(priority)
+        priority_name = get_priority_name(priority)
+        
+        wishlist_text += f"{priority_emoji} **Priority {priority} - {priority_name}:**\n"
+        
+        for item in items:
+            item_count += 1
+            name = item["item_name"]
+            price = item.get("estimated_price")
+            
+            if price and price > 0:
+                wishlist_text += f"{item_count}. **{name}**: {format_currency(price)}\n"
+                total_wishlist += price
+            else:
+                wishlist_text += f"{item_count}. **{name}**: Chưa có giá\n"
+        
+        wishlist_text += "\n"
     
-    wishlist_text += f"\n💰 **Tổng giá trị**: {format_currency(total_wishlist)}"
-    wishlist_text += f"\n📝 **Số lượng**: {len(items)} sản phẩm"
+    if total_wishlist > 0:
+        wishlist_text += f"💰 **Tổng giá trị**: {format_currency(total_wishlist)}"
+    
+    wishlist_text += f"\n📝 **Tổng số món**: {item_count} sản phẩm"
     
     await update.message.reply_text(wishlist_text)
 
@@ -83,13 +168,38 @@ async def wishlist_remove_command(update: Update, context: ContextTypes.DEFAULT_
         # Get wishlist items
         wishlist_data = db.get_wishlist(user_id)
         
-        if not wishlist_data.data or item_index >= len(wishlist_data.data):
-            await update.message.reply_text("❌ Số thứ tự không hợp lệ. Kiểm tra /wishlist")
+        if not wishlist_data.data:
+            await update.message.reply_text("❌ Wishlist trống")
+            return
+        
+        # Filter out purchased items  
+        active_items = [item for item in wishlist_data.data if not item.get("purchased", False)]
+        
+        if not active_items:
+            await update.message.reply_text("❌ Wishlist trống")
             return
         
         # Sort same as in view function
-        items = sorted(wishlist_data.data, key=lambda x: x.get("estimated_price", 0), reverse=True)
-        selected_item = items[item_index]
+        items_by_priority = {1: [], 2: [], 3: []}
+        
+        for item in active_items:
+            priority = item.get("priority", 3)
+            items_by_priority[priority].append(item)
+        
+        # Sort each priority group by price (highest first), then by name
+        for priority in items_by_priority:
+            items_by_priority[priority].sort(key=lambda x: (-(x.get("estimated_price") or 0), x["item_name"]))
+        
+        # Create flat list in display order
+        all_items = []
+        for priority in [1, 2, 3]:
+            all_items.extend(items_by_priority[priority])
+        
+        if item_index >= len(all_items):
+            await update.message.reply_text("❌ Số thứ tự không hợp lệ. Kiểm tra /wishlist")
+            return
+        
+        selected_item = all_items[item_index]
         
         # Remove item
         db.delete_wishlist_item(selected_item["id"])
@@ -100,21 +210,3 @@ async def wishlist_remove_command(update: Update, context: ContextTypes.DEFAULT_
         
     except ValueError:
         await update.message.reply_text("❌ Vui lòng nhập số hợp lệ: /wishremove 1")
-    bought_data = db.get_wishlist(user_id, purchased=True)
-    
-    if not bought_data.data:
-        await update.message.reply_text("🛍️ Chưa mua sản phẩm nào từ wishlist!")
-        return
-    
-    bought_text = "🎉 **Đã mua từ wishlist:**\n\n"
-    total_spent = 0
-    
-    for i, item in enumerate(bought_data.data, 1):
-        name = item["item_name"]
-        price = item.get("estimated_price", 0)
-        bought_text += f"{i}. ✅ **{name}**: {format_currency(price)}\n"
-        total_spent += price
-    
-    bought_text += f"\n💰 **Tổng đã chi**: {format_currency(total_spent)}"
-    
-    await update.message.reply_text(bought_text)
