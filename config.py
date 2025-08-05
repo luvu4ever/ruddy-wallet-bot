@@ -11,6 +11,34 @@ load_dotenv()
 # Default category for subscriptions when auto-added in summary
 DEFAULT_SUBSCRIPTION_CATEGORY = "cá nhân"
 
+# Income types configuration
+INCOME_TYPES = {
+    "construction": {
+        "description": "Construction income (for công trình category only)",
+        "emoji": "🏗️",
+        "target_category": "công trình"
+    },
+    "salary": {
+        "description": "Monthly salary (for all categories except công trình)",
+        "emoji": "💵",
+        "target_category": "general"
+    },
+    "random": {
+        "description": "Additional income (for all categories except công trình)",
+        "emoji": "🎉", 
+        "target_category": "general"
+    }
+}
+
+def get_income_types_list():
+    """Get formatted income types for display"""
+    return "\n".join([f"• {itype} {info['emoji']} - {info['description']}" 
+                     for itype, info in INCOME_TYPES.items()])
+
+def get_income_emoji(income_type):
+    """Get emoji for income type"""
+    return INCOME_TYPES.get(income_type, {}).get("emoji", "💰")
+
 # =============================================================================
 # TEXT CONFIGURATION - CHANGE MESSAGES HERE
 # =============================================================================
@@ -20,8 +48,7 @@ BOT_MESSAGES = {
 
 **Cách sử dụng:**
 • **Chi tiêu**: "50k bún bò huế", "100k cát mèo", "1.5m sofa"
-• **Lương**: "lương 3m" 
-• **Thu nhập thêm**: "thu nhập thêm 500k"
+• **Thu nhập**: "/income salary 3m", "/income construction 2m"
 
 **Định dạng tiền:**
 • 50k = 50,000đ | 1.5m = 1,500,000đ | 3tr = 3,000,000đ
@@ -30,6 +57,7 @@ BOT_MESSAGES = {
 • /list - Xem chi tiêu tháng này
 • /summary - Báo cáo tháng này
 • /summary 8/2025 - Báo cáo tháng 8/2025
+• /income - Xem loại thu nhập
 • /budget ăn uống 1.5m - Đặt budget
 • /sublist - Xem subscriptions
 • /saving - Xem tiết kiệm
@@ -48,7 +76,11 @@ Subscriptions tự động hàng tháng! 📅
 • `100k cát mèo` - mèo cưng 🐾
 • `1.5m sofa` - công trình 🏗️
 • `50k đèn nhỏ` - linh tinh 🔧
-• `lương 3m` - lương tháng  
+
+**Thu nhập:**
+• `/income salary 3m` - lương tháng
+• `/income construction 2m` - thu nhập xây dựng
+• `/income random 500k` - thu nhập thêm
 
 **Subscriptions:**
 • `/subadd Spotify 33k` - thêm subscription
@@ -63,6 +95,7 @@ Subscriptions tự động hàng tháng! 📅
 • `/list` - xem chi tiêu tháng này
 • `/summary` - báo cáo tháng này
 • `/summary 8/2025` - báo cáo tháng 8/2025
+• `/income` - quản lý thu nhập
 • `/saving` - xem tiết kiệm
 • `/category` - xem danh mục
 • `/wishlist` - xem wishlist
@@ -70,7 +103,7 @@ Subscriptions tự động hàng tháng! 📅
 AI tự động phân loại! 🤖
     """,
     
-    "unknown_message": "🤔 Tôi không hiểu tin nhắn này. Thử:\n• '50k bún bò huế' (chi tiêu ăn uống)\n• '100k cát mèo' (chi phí mèo)\n• '1.5m sofa' (công trình) hoặc '50k đèn nhỏ' (linh tinh)\n• 'lương 3m' hoặc 'lương 3tr' (lương tháng)\n• 'thu nhập thêm 500k' (tiền thêm)",
+    "unknown_message": "🤔 Tôi không hiểu tin nhắn này. Thử:\n• '50k bún bò huế' (chi tiêu ăn uống)\n• '100k cát mèo' (chi phí mèo)\n• '1.5m sofa' (công trình) hoặc '50k đèn nhỏ' (linh tinh)\n• '/income salary 3m' (thu nhập)\n• '/income construction 2m xây nhà' (thu nhập công trình)",
     
     "unauthorized": "❌ Sorry, you're not authorized to use this bot.",
     
@@ -92,6 +125,17 @@ AI tự động phân loại! 🤖
     
     "wishlist_added": "✅ Đã thêm vào wishlist!\n🛍️ **{name}**: {amount}",
     
+    "income_added": "✅ Đã thêm thu nhập!\n{emoji} **{type}**: {amount} - {description}",
+    
+    "income_types": """
+💰 **Loại thu nhập:**
+
+{income_types}
+
+**Cách dùng:** /income [type] [amount] [description]
+**Ví dụ:** /income salary 3m lương tháng 8
+    """,
+    
     "format_errors": {
         "summary_date": "❌ Format: /summary 8/2025 hoặc /summary (tháng này)",
         "month_range": "❌ Tháng phải từ 1-12",
@@ -100,7 +144,9 @@ AI tự động phân loại! 🤖
         "subscription_usage": "❌ Cách dùng: /subadd Spotify 33k\nhoặc /subadd Netflix 150k\nhoặc /subadd Premium 1.5tr",
         "wishlist_usage": "❌ Cách dùng: /wishadd iPhone 15 Pro 25m",
         "savings_usage": "❌ Cách dùng: /editsaving 500k (để đặt tiết kiệm thành 500k)",
-        "invalid_number": "❌ Vui lòng nhập số hợp lệ: {example}"
+        "invalid_number": "❌ Vui lòng nhập số hợp lệ: {example}",
+        "income_usage": "❌ Cách dùng: /income [type] [amount] [description]\nVí dụ: /income salary 3m lương tháng\nDùng /income để xem các loại",
+        "invalid_income_type": "❌ Loại thu nhập không hợp lệ: '{type}'\nDùng /income để xem các loại có sẵn"
     }
 }
 

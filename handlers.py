@@ -13,6 +13,7 @@ from config import (
     get_all_category_info, get_message, DEFAULT_SUBSCRIPTION_CATEGORY
 )
 from budget_handlers import calculate_remaining_budget, get_total_budget
+from income_handlers import calculate_income_by_type, calculate_expenses_by_income_type
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -60,37 +61,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             db.insert_expense(expense_data)
             responses.append(f"💰 Spent: {format_currency(expense['amount'])} - {expense['description']} ({expense.get('category', 'khác')})")
-    
-    elif message_type == "salary":
-        # Save salary income
-        income_data = parsed_data.get("income", {})
-        if income_data:
-            salary_data = {
-                "user_id": user_id,
-                "amount": income_data["amount"],
-                "income_type": "salary",
-                "description": income_data.get("description", "Monthly salary"),
-                "date": date.today().isoformat()
-            }
-            
-            db.insert_income(salary_data)
-            responses.append(f"💵 Lương đã thêm: {format_currency(income_data['amount'])}")
-    
-    elif message_type == "random_income":
-        # Save random income
-        income_data = parsed_data.get("income", {})
-        if income_data:
-            random_income_data = {
-                "user_id": user_id,
-                "amount": income_data["amount"],
-                "income_type": "random",
-                "description": income_data.get("description", "Additional income"),
-                "date": date.today().isoformat()
-            }
-            
-            db.insert_income(random_income_data)
-            responses.append(f"🎉 Thu nhập thêm: {format_currency(income_data['amount'])}")
-    
     else:
         responses.append(get_message("unknown_message"))
     
@@ -298,15 +268,33 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     expense_data = expenses.data
     income_data = income.data
     
-    # Calculate totals
-    total_expenses = sum(float(exp["amount"]) for exp in expense_data)
-    total_income = sum(float(inc["amount"]) for inc in income_data)
+    # Calculate totals with income type separation
+    income_breakdown = calculate_income_by_type(user_id, month_start)
+    expense_breakdown = calculate_expenses_by_income_type(user_id, month_start)
+    
+    total_expenses = expense_breakdown["total"]
+    total_income = income_breakdown["total"]
     
     # Show added subscriptions
     subscription_info = ""
     if subscription_expenses:
         sub_names = [sub["description"].replace(" (subscription)", "") for sub in subscription_expenses]
         subscription_info = f"\n🔄 **Đã thêm subscriptions**: {', '.join(sub_names)}"
+    
+    # Create income/expense breakdown info
+    breakdown_info = f"""
+📊 **Phân tích theo loại:**
+
+🏗️ **CÔNG TRÌNH:**
+• Thu nhập: {format_currency(income_breakdown["construction"])}
+• Chi tiêu: {format_currency(expense_breakdown["construction"])}
+• Lãi/lỗ: {format_currency(income_breakdown["construction"] - expense_breakdown["construction"])}
+
+💰 **KHÁC (salary + random):**
+• Thu nhập: {format_currency(income_breakdown["general"])}
+• Chi tiêu: {format_currency(expense_breakdown["general"])}
+• Lãi/lỗ: {format_currency(income_breakdown["general"] - expense_breakdown["general"])}
+    """
     
     summary = generate_monthly_summary(expense_data, income_data, target_month, target_year)
     
@@ -320,10 +308,10 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             budget_summary = f"\n💰 **Budget tháng này**: {format_currency(total_budget)}\n⚠️ **Vượt budget**: {format_currency(abs(remaining_budget))}"
     
     if summary:
-        full_summary = f"📊 **Báo cáo tháng {target_month}/{target_year}**{subscription_info}\n\n{summary}{budget_summary}"
+        full_summary = f"📊 **Báo cáo tháng {target_month}/{target_year}**{subscription_info}\n\n{summary}{breakdown_info}{budget_summary}"
         await update.message.reply_text(full_summary)
     else:
-        # Fallback summary with budget
+        # Fallback summary with budget and breakdown
         net_savings = total_income - total_expenses
         
         fallback_summary = f"""
@@ -334,7 +322,7 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📈 Tiết kiệm ròng: {format_currency(net_savings)}
 
 Chi tiêu: {len(expense_data)} lần
-Thu nhập: {len(income_data)} lần{budget_summary}
+Thu nhập: {len(income_data)} lần{breakdown_info}{budget_summary}
         """
         await update.message.reply_text(fallback_summary)
 
@@ -413,6 +401,21 @@ async def list_expenses_command(update: Update, context: ContextTypes.DEFAULT_TY
     
     response_text += f"💰 **TỔNG CỘNG: {format_currency(total_month)}**"
     
+    # Calculate income/expense breakdown for list
+    income_breakdown = calculate_income_by_type(user_id, month_start)
+    expense_breakdown = calculate_expenses_by_income_type(user_id, month_start)
+    
+    # Add breakdown info at the end
+    breakdown_summary = f"""
+📊 **Phân tích thu chi:**
+
+🏗️ **CÔNG TRÌNH:** Thu {format_currency(income_breakdown["construction"])} - Chi {format_currency(expense_breakdown["construction"])} = {format_currency(income_breakdown["construction"] - expense_breakdown["construction"])}
+
+💰 **KHÁC:** Thu {format_currency(income_breakdown["general"])} - Chi {format_currency(expense_breakdown["general"])} = {format_currency(income_breakdown["general"] - expense_breakdown["general"])}
+    """
+    
+    response_text += f"\n{breakdown_summary}"
+    
     # Split long messages
     if len(response_text) > 4000:
         # Send in chunks
@@ -448,7 +451,7 @@ async def list_expenses_command(update: Update, context: ContextTypes.DEFAULT_TY
             
             current_chunk += "\n"
         
-        current_chunk += f"💰 **TỔNG CỘNG: {format_currency(total_month)}**"
+        current_chunk += f"\n💰 **TỔNG CỘNG: {format_currency(total_month)}**\n{breakdown_summary}"
         chunks.append(current_chunk.strip())
         
         # Send all chunks

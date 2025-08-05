@@ -1,3 +1,6 @@
+from income_handlers import (
+    income_command
+)
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from telegram.error import Conflict
 from config import TELEGRAM_BOT_TOKEN, get_category_list_display, get_startup_message, get_error_message
@@ -56,6 +59,9 @@ def main():
         # Budget handlers
         application.add_handler(CommandHandler("budget", budget_command))
         application.add_handler(CommandHandler("budgetlist", budget_list_command))
+        
+        # Income handlers
+        application.add_handler(CommandHandler("income", income_command))
         
         # Message handler (should be last)
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
