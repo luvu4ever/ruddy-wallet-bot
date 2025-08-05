@@ -1,6 +1,6 @@
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from telegram.error import Conflict
-from config import TELEGRAM_BOT_TOKEN
+from config import TELEGRAM_BOT_TOKEN, get_category_list_display, get_startup_message, get_error_message
 from handlers import (
     start,
     handle_message,
@@ -61,32 +61,26 @@ def main():
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
         
         # Start the bot
-        print("🤖 Simplified Personal Finance Bot is starting...")
-        print("📂 Categories:", ", ".join([
-            "ăn uống", "di chuyển", "giải trí", "mua sắm", 
-            "hóa đơn", "sức khỏe", "giáo dục", "gia đình", "mèo", "nội thất", "khác"
-        ]))
-        print("💰 K/M/TR notation: 50k=50,000đ, 1.5m=1,500,000đ, 3tr=3,000,000đ")
-        print("📝 Simple wishlist: add, view, remove")
-        print("📅 Subscription feature: auto-added when calculating summary")
-        print("💰 Budget planning: set spending limits per category")
-        print("📊 Summary with date: /summary or /summary 8/2025")
-        print("📝 New feature: /list command to view all monthly expenses by category")
+        print(get_startup_message("starting"))
+        print(get_startup_message("categories", categories=get_category_list_display()))
+        print(get_startup_message("notation"))
+        print(get_startup_message("wishlist"))
+        print(get_startup_message("subscriptions"))
+        print(get_startup_message("budget"))
+        print(get_startup_message("summary"))
+        print(get_startup_message("list_feature"))
         
         application.run_polling()
         
     except Conflict as e:
-        print("❌ Bot conflict error: Another bot instance is running!")
-        print("🔧 Solutions:")
-        print("1. Stop other bot instances")
-        print("2. Wait 30 seconds and try again")
-        print("3. Check if bot is running elsewhere")
-        print(f"Error details: {e}")
+        print(get_error_message("bot_conflict"))
+        print(get_error_message("solutions"))
+        print("Error details:", str(e))
         sys.exit(1)
         
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
-        print("🔧 Restarting in 30 seconds...")
+        print(get_error_message("unexpected", error=str(e)))
+        print(get_error_message("restarting"))
         time.sleep(30)
         main()  # Restart
 

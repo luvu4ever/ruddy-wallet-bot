@@ -5,7 +5,7 @@ from difflib import get_close_matches
 
 from database import db
 from utils import is_authorized, format_currency, parse_amount
-from config import EXPENSE_CATEGORIES
+from config import EXPENSE_CATEGORIES, get_category_emoji
 
 async def budget_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Set budget for category: /budget ăn uống 1.5m"""
@@ -93,22 +93,7 @@ async def budget_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     await update.message.reply_text(budget_text)
 
-def get_category_emoji(category):
-    """Get emoji for category"""
-    emoji_map = {
-        "ăn uống": "🍜",
-        "di chuyển": "🚗", 
-        "giải trí": "🎮",
-        "mua sắm": "🛍️",
-        "hóa đơn": "📄",
-        "sức khỏe": "⚕️",
-        "giáo dục": "📚",
-        "gia đình": "👨‍👩‍👧‍👦",
-        "mèo": "🐱",
-        "nội thất": "🪑",
-        "khác": "📂"
-    }
-    return emoji_map.get(category, "📂")
+        # Remove the get_category_emoji function - now imported from categories
 
 def calculate_remaining_budget(user_id, month_start):
     """Calculate remaining budget for all categories"""
