@@ -32,7 +32,7 @@ INCOME_TYPES = {
 
 def get_income_types_list():
     """Get formatted income types for display"""
-    return "\n".join([f"• {itype} {info['emoji']} - {info['description']}" 
+    return "\n".join([f"• {itype} {info['emoji']} \\- {info['description']}" 
                      for itype, info in INCOME_TYPES.items()])
 
 def get_income_emoji(income_type):
@@ -40,117 +40,192 @@ def get_income_emoji(income_type):
     return INCOME_TYPES.get(income_type, {}).get("emoji", "💰")
 
 # =============================================================================
-# TEXT CONFIGURATION - CHANGE MESSAGES HERE
+# TEXT CONFIGURATION - ENHANCED WITH RICH FORMATTING
 # =============================================================================
 BOT_MESSAGES = {
     "welcome": """
-🤖 **Chào mừng đến với Bot Tài chính cá nhân!**
+🤖 *CHÀO MỪNG ĐỾN VỚI BOT TÀI CHÍNH CÁ NHÂN\\!*
 
-**Cách sử dụng:**
-• **Chi tiêu**: "50k bún bò huế", "100k cát mèo", "1.5m sofa"
-• **Thu nhập**: "/income salary 3m", "/income construction 2m"
+*📝 CÁCH SỬ DỤNG:*
+• *Chi tiêu*: `50k bún bò huế`, `100k cát mèo`, `1\\.5m sofa`
+• *Thu nhập*: `/income salary 3m`, `/income construction 2m`
 
-**Định dạng tiền:**
-• 50k = 50,000đ | 1.5m = 1,500,000đ | 3tr = 3,000,000đ
+*💰 ĐỊNH DẠNG TIỀN:*
+• `50k` = 50,000đ | `1\\.5m` = 1,500,000đ | `3tr` = 3,000,000đ
 
-**Lệnh:**
-• /list - Xem chi tiêu tháng này
-• /summary - Báo cáo tháng này
-• /summary 8/2025 - Báo cáo tháng 8/2025
-• /income - Xem loại thu nhập
-• /budget ăn uống 1.5m - Đặt budget
-• /sublist - Xem subscriptions
-• /saving - Xem tiết kiệm
-• /wishlist - Xem wishlist
-• /help - Hướng dẫn
+*⚡ LỆNH NHANH:*
+• `/list` \\- Xem chi tiêu tháng này
+• `/summary` \\- Báo cáo tháng này  
+• `/summary 8/2025` \\- Báo cáo tháng 8/2025
+• `/income` \\- Xem loại thu nhập
+• `/budget ăn uống 1\\.5m` \\- Đặt budget
+• `/sublist` \\- Xem subscriptions
+• `/saving` \\- Xem tiết kiệm
+• `/wishlist` \\- Xem wishlist
+• `/help` \\- Hướng dẫn
 
-AI tự động phân loại! 🤖🐾🎮
-Subscriptions tự động hàng tháng! 📅
+🤖 *AI tự động phân loại\\!* 🐾🎮
+📅 *Subscriptions tự động hàng tháng\\!*
     """,
     
     "help": """
-💰 **Hướng dẫn nhanh**
+💡 *HƯỚNG DẪN NHANH*
 
-**Ghi chi tiêu:**
-• `50k bún bò huế` - ăn uống
-• `100k cát mèo` - mèo cưng 🐾
-• `1.5m sofa` - công trình 🏗️
-• `50k đèn nhỏ` - linh tinh 🔧
+*📝 GHI CHI TIÊU:*
+• `50k bún bò huế` \\- ăn uống
+• `100k cát mèo` \\- mèo cưng 🐾
+• `1\\.5m sofa` \\- công trình 🏗️
+• `50k đèn nhỏ` \\- linh tinh 🔧
 
-**Thu nhập:**
-• `/income salary 3m` - lương tháng
-• `/income construction 2m` - thu nhập xây dựng
-• `/income random 500k` - thu nhập thêm
+*💵 THU NHẬP:*
+• `/income salary 3m` \\- lương tháng
+• `/income construction 2m` \\- thu nhập xây dựng
+• `/income random 500k` \\- thu nhập thêm
 
-**Subscriptions:**
-• `/subadd Spotify 33k` - thêm subscription
-• `/sublist` - xem subscriptions
-• `/subremove 1` - xóa subscription
+*📅 SUBSCRIPTIONS:*
+• `/subadd Spotify 33k` \\- thêm subscription
+• `/sublist` \\- xem subscriptions
+• `/subremove 1` \\- xóa subscription
 
-**Budget:**
-• `/budget ăn uống 1.5m` - đặt budget
-• `/budgetlist` - xem budget plans
+*💰 BUDGET:*
+• `/budget ăn uống 1\\.5m` \\- đặt budget
+• `/budgetlist` \\- xem budget plans
 
-**Lệnh:**
-• `/list` - xem chi tiêu tháng này
-• `/summary` - báo cáo tháng này
-• `/summary 8/2025` - báo cáo tháng 8/2025
-• `/income` - quản lý thu nhập
-• `/saving` - xem tiết kiệm
-• `/category` - xem danh mục
-• `/wishlist` - xem wishlist
+*🔍 LỆNH KHÁC:*
+• `/list` \\- xem chi tiêu tháng này
+• `/summary` \\- báo cáo tháng này
+• `/summary 8/2025` \\- báo cáo tháng 8/2025
+• `/income` \\- quản lý thu nhập
+• `/saving` \\- xem tiết kiệm
+• `/category` \\- xem danh mục
+• `/wishlist` \\- xem wishlist
 
-AI tự động phân loại! 🤖
+🤖 *AI tự động phân loại\\!*
     """,
     
-    "unknown_message": "🤔 Tôi không hiểu tin nhắn này. Thử:\n• '50k bún bò huế' (chi tiêu ăn uống)\n• '100k cát mèo' (chi phí mèo)\n• '1.5m sofa' (công trình) hoặc '50k đèn nhỏ' (linh tinh)\n• '/income salary 3m' (thu nhập)\n• '/income construction 2m xây nhà' (thu nhập công trình)",
+    "unknown_message": """
+🤔 *Tôi không hiểu tin nhắn này\\.*
+
+__Thử các cách sau:__
+• `50k bún bò huế` \\(chi tiêu ăn uống\\)
+• `100k cát mèo` \\(chi phí mèo\\)  
+• `1\\.5m sofa` \\(công trình\\) hoặc `50k đèn nhỏ` \\(linh tinh\\)
+• `/income salary 3m` \\(thu nhập\\)
+• `/income construction 2m xây nhà` \\(thu nhập công trình\\)
+    """,
     
-    "unauthorized": "❌ Sorry, you're not authorized to use this bot.",
+    "unauthorized": "❌ *Sorry, you're not authorized to use this bot\\.*",
     
-    "no_expenses_this_month": "📝 Không có chi tiêu nào trong tháng {month}/{year}",
+    "no_expenses_this_month": "📝 *Không có chi tiêu nào trong tháng {month}/{year}*",
     
-    "no_budget": "💰 Chưa có budget plan nào!\n\nDùng /budget [category] [amount] để đặt budget\nVí dụ: /budget ăn uống 1.5m",
+    "no_budget": """
+💰 *Chưa có budget plan nào\\!*
+
+Dùng `/budget [category] [amount]` để đặt budget
+*Ví dụ:* `/budget ăn uống 1\\.5m`
+    """,
     
-    "no_subscriptions": "📅 Không có subscription nào!\n\nDùng /subadd để thêm subscription\nSubscription sẽ tự động được thêm khi tính /summary",
+    "no_subscriptions": """
+📅 *Không có subscription nào\\!*
+
+Dùng `/subadd` để thêm subscription
+_Subscription sẽ tự động được thêm khi tính /summary_
+    """,
     
-    "no_wishlist": "📝 Wishlist trống!\n\nDùng /wishadd [tên] [giá] để thêm",
+    "no_wishlist": """
+🛍️ *Wishlist trống\\!*
+
+Dùng `/wishadd [tên] [giá]` để thêm
+    """,
     
-    "savings_current": "💰 **Tiết kiệm hiện tại**: {amount}\n📅 Cập nhật: {date}",
+    "savings_current": """
+💰 *TIẾT KIỆM HIỆN TẠI*
+
+`{amount}`
+📅 _Cập nhật: {date}_
+    """,
     
-    "savings_none": "💰 **Tiết kiệm hiện tại**: 0đ\n\nDùng /editsaving 500k để đặt số tiền tiết kiệm!",
+    "savings_none": """
+💰 *TIẾT KIỆM HIỆN TẠI*
+
+`0đ`
+
+Dùng `/editsaving 500k` để đặt số tiền tiết kiệm\\!
+    """,
     
-    "subscription_added": "✅ Đã thêm subscription!\n📅 **{name}**: {amount}/tháng\n\n💡 Subscription sẽ tự động được thêm khi tính /summary",
+    "subscription_added": """
+✅ *Đã thêm subscription\\!*
+
+📅 *{name}*: `{amount}/tháng`
+
+💡 _Subscription sẽ tự động được thêm khi tính /summary_
+    """,
     
-    "budget_set": "✅ Đã đặt budget!\n{emoji} **{category}**: {amount}/tháng",
+    "budget_set": """
+✅ *Đã đặt budget\\!*
+
+{emoji} *{category}*: `{amount}/tháng`
+    """,
     
-    "wishlist_added": "✅ Đã thêm vào wishlist!\n🛍️ **{name}**: {amount}",
+    "wishlist_added": """
+✅ *Đã thêm vào wishlist\\!*
+
+🛍️ *{name}*: `{price_text}`{priority_text}
+    """,
     
-    "income_added": "✅ Đã thêm thu nhập!\n{emoji} **{type}**: {amount} - {description}",
+    "income_added": """
+✅ *Đã thêm thu nhập\\!*
+
+{emoji} *{type}*: `{amount}` \\- _{description}_
+    """,
     
     "income_types": """
-💰 **Loại thu nhập:**
+💰 *LOẠI THU NHẬP:*
 
 {income_types}
 
-**Cách dùng:** /income [type] [amount] [description]
-**Ví dụ:** /income salary 3m lương tháng 8
+*Cách dùng:* `/income [type] [amount] [description]`
+*Ví dụ:* `/income salary 3m lương tháng 8`
     """,
     
     "format_errors": {
-        "summary_date": "❌ Format: /summary 8/2025 hoặc /summary (tháng này)",
-        "month_range": "❌ Tháng phải từ 1-12",
-        "budget_usage": "❌ Cách dùng: /budget ăn uống 1.5m\nhoặc /budget mèo 500k\nhoặc /budget an uong 1tr (gần giống cũng được)",
-        "invalid_amount": "❌ Số tiền không hợp lệ. Ví dụ: /budget ăn uống 1.5m",
-        "subscription_usage": "❌ Cách dùng: /subadd Spotify 33k\nhoặc /subadd Netflix 150k\nhoặc /subadd Premium 1.5tr",
-        "wishlist_usage": "❌ Cách dùng: /wishadd iPhone 15 Pro 25m prio:1\nhoặc /wishadd iPhone (không cần giá)\nPriority: 1=cao🔴, 2=trung bình🟡, 3=thấp🟢 (mặc định)",
-        "savings_usage": "❌ Cách dùng: /editsaving 500k (để đặt tiết kiệm thành 500k)",
-        "invalid_number": "❌ Vui lòng nhập số hợp lệ: {example}",
-        "income_usage": "❌ Cách dùng: /income [type] [amount] [description]\nVí dụ: /income salary 3m lương tháng\nDùng /income để xem các loại",
-        "invalid_income_type": "❌ Loại thu nhập không hợp lệ: '{type}'\nDùng /income để xem các loại có sẵn"
+        "summary_date": "❌ *Format:* `/summary 8/2025` hoặc `/summary` \\(tháng này\\)",
+        "month_range": "❌ *Tháng phải từ 1\\-12*",
+        "budget_usage": """
+❌ *Cách dùng:*
+• `/budget ăn uống 1\\.5m`
+• `/budget mèo 500k`  
+• `/budget an uong 1tr` \\(gần giống cũng được\\)
+        """,
+        "invalid_amount": "❌ *Số tiền không hợp lệ\\.*\n_Ví dụ:_ `/budget ăn uống 1\\.5m`",
+        "subscription_usage": """
+❌ *Cách dùng:*
+• `/subadd Spotify 33k`
+• `/subadd Netflix 150k`
+• `/subadd Premium 1\\.5tr`
+        """,
+        "wishlist_usage": """
+❌ *Cách dùng:*
+• `/wishadd iPhone 15 Pro 25m prio:1`
+• `/wishadd iPhone` \\(không cần giá\\)
+
+*Priority:* `1=cao🔴`, `2=trung bình🟡`, `3=thấp🟢` \\(mặc định\\)
+        """,
+        "savings_usage": "❌ *Cách dùng:* `/editsaving 500k` \\(để đặt tiết kiệm thành 500k\\)",
+        "invalid_number": "❌ *Vui lòng nhập số hợp lệ:* {example}",
+        "income_usage": """
+❌ *Cách dùng:* `/income [type] [amount] [description]`
+*Ví dụ:* `/income salary 3m lương tháng`
+_Dùng /income để xem các loại_
+        """,
+        "invalid_income_type": """
+❌ *Loại thu nhập không hợp lệ:* `{type}`
+_Dùng /income để xem các loại có sẵn_
+        """
     }
 }
 
-# Console startup messages
+# Console startup messages (no changes needed for console)
 STARTUP_MESSAGES = {
     "starting": "🤖 Simplified Personal Finance Bot is starting...",
     "categories": "📂 Categories: {categories}",
@@ -162,7 +237,7 @@ STARTUP_MESSAGES = {
     "list_feature": "📝 New feature: /list command to view all monthly expenses by category"
 }
 
-# Error messages
+# Error messages (no changes needed for console)
 ERROR_MESSAGES = {
     "bot_conflict": "❌ Bot conflict error: Another bot instance is running!",
     "solutions": "🔧 Solutions:\n1. Stop other bot instances\n2. Wait 30 seconds and try again\n3. Check if bot is running elsewhere",
@@ -264,7 +339,7 @@ def get_category_examples(category):
 
 def get_all_category_info():
     """Get formatted category info for display"""
-    return "\n".join([f"• {cat} {get_category_emoji(cat)} - {get_category_description(cat)}" 
+    return "\n".join([f"• {cat} {get_category_emoji(cat)} \\- {get_category_description(cat)}" 
                      for cat in EXPENSE_CATEGORIES])
 
 def get_ai_categorization_rules():
