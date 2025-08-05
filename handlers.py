@@ -5,11 +5,12 @@ from collections import defaultdict
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from config import EXPENSE_CATEGORIES
+from config import TELEGRAM_BOT_TOKEN
 from database import db
 from ai_parser import parse_message_with_gemini, generate_monthly_summary
 from utils import is_authorized, format_currency, parse_amount
-from budget_handlers import calculate_remaining_budget, get_total_budget, get_category_emoji
+from config import EXPENSE_CATEGORIES, get_category_emoji, get_category_list_display, get_all_category_info
+from budget_handlers import calculate_remaining_budget, get_total_budget
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -114,7 +115,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             responses.append(f"🎉 Thu nhập thêm: {format_currency(income_data['amount'])}")
     
     else:
-        responses.append("🤔 Tôi không hiểu tin nhắn này. Thử:\n• '50k bún bò huế' (chi tiêu ăn uống)\n• '100k cát mèo' (chi phí mèo)\n• '1.5m bàn ghế' hoặc '1.5tr bàn ghế' (nội thất)\n• 'lương 3m' hoặc 'lương 3tr' (lương tháng)\n• 'thu nhập thêm 500k' (tiền thêm)")
+        responses.append("🤔 Tôi không hiểu tin nhắn này. Thử:\n• '50k bún bò huế' (chi tiêu ăn uống)\n• '100k cát mèo' (chi phí mèo)\n• '1.5m sofa' (công trình) hoặc '50k đèn nhỏ' (linh tinh)\n• 'lương 3m' hoặc 'lương 3tr' (lương tháng)\n• 'thu nhập thêm 500k' (tiền thêm)")
     
     if responses:
         await update.message.reply_text("\n".join(responses))
@@ -177,8 +178,8 @@ async def category_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not args:
         # Show all categories
-        categories_list = "\n".join([f"• {cat}" for cat in EXPENSE_CATEGORIES])
-        await update.message.reply_text(f"📂 **Danh mục chi tiêu:**\n\n{categories_list}\n\nDùng: `/category ăn uống`, `/category mèo`, hoặc `/category nội thất` để xem chi tiết")
+        category_info = get_all_category_info()
+        await update.message.reply_text(f"📂 **Danh mục chi tiêu:**\n\n{category_info}\n\nDùng: `/category [tên category]` để xem chi tiết")
         return
     
     category = " ".join(args).lower()
@@ -235,7 +236,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 **Ghi chi tiêu:**
 • `50k bún bò huế` - ăn uống
 • `100k cát mèo` - mèo cưng 🐱
-• `1.5m bàn ghế` - nội thất 🪑
+• `1.5m sofa` - công trình 🏗️
+• `50k đèn nhỏ` - linh tinh 🔧
 • `lương 3m` - lương tháng  
 
 **Subscriptions:**

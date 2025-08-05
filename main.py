@@ -1,6 +1,6 @@
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from telegram.error import Conflict
-from config import TELEGRAM_BOT_TOKEN
+from config import TELEGRAM_BOT_TOKEN, get_category_list_display
 from handlers import (
     start,
     handle_message,
@@ -62,9 +62,7 @@ def main():
         
         # Start the bot
         print("🤖 Simplified Personal Finance Bot is starting...")
-        print("📂 Categories:", ", ".join([
-            "ăn uống", "di chuyển", "hóa đơn", "cá nhân", "mèo", "nội thất", "khác"
-        ]))
+        print("📂 Categories:", get_category_list_display())
         print("💰 K/M/TR notation: 50k=50,000đ, 1.5m=1,500,000đ, 3tr=3,000,000đ")
         print("📝 Simple wishlist: add, view, remove")
         print("📅 Subscription feature: auto-added when calculating summary")
