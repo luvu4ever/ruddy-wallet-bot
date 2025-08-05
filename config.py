@@ -142,7 +142,7 @@ AI tự động phân loại! 🤖
         "budget_usage": "❌ Cách dùng: /budget ăn uống 1.5m\nhoặc /budget mèo 500k\nhoặc /budget an uong 1tr (gần giống cũng được)",
         "invalid_amount": "❌ Số tiền không hợp lệ. Ví dụ: /budget ăn uống 1.5m",
         "subscription_usage": "❌ Cách dùng: /subadd Spotify 33k\nhoặc /subadd Netflix 150k\nhoặc /subadd Premium 1.5tr",
-        "wishlist_usage": "❌ Cách dùng: /wishadd iPhone 15 Pro 25m",
+        "wishlist_usage": "❌ Cách dùng: /wishadd iPhone 15 Pro 25m prio:1\nhoặc /wishadd iPhone (không cần giá)\nPriority: 1=cao🔴, 2=trung bình🟡, 3=thấp🟢 (mặc định)",
         "savings_usage": "❌ Cách dùng: /editsaving 500k (để đặt tiết kiệm thành 500k)",
         "invalid_number": "❌ Vui lòng nhập số hợp lệ: {example}",
         "income_usage": "❌ Cách dùng: /income [type] [amount] [description]\nVí dụ: /income salary 3m lương tháng\nDùng /income để xem các loại",
@@ -278,6 +278,21 @@ def get_ai_categorization_rules():
 def get_category_list_display():
     """Get category list for console display"""
     return ", ".join(EXPENSE_CATEGORIES)
+
+# Wishlist priority configuration  
+WISHLIST_PRIORITIES = {
+    1: {"emoji": "🚨", "name": "Cao", "color": "đỏ"},      # 1 = high priority
+    2: {"emoji": "⚠️", "name": "Trung bình", "color": "vàng"}, # 2 = medium priority
+    3: {"emoji": "🌿", "name": "Thấp", "color": "xanh"}     # 3 = low priority  
+}
+
+def get_priority_emoji(priority):
+    """Get emoji for wishlist priority"""
+    return WISHLIST_PRIORITIES.get(priority, {}).get("emoji", "🟢")
+
+def get_priority_name(priority):
+    """Get name for wishlist priority"""
+    return WISHLIST_PRIORITIES.get(priority, {}).get("name", "Thấp")
 
 # =============================================================================
 # OTHER CONFIGURATION
