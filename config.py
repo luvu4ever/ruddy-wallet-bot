@@ -282,16 +282,23 @@ Chưa có giao dịch nào được ghi nhận.
     
     "no_wishlist": """🛍️ *WISHLIST TRỐNG!*
 
-*💡 CÁCH THÊM WISHLIST:*
+*💡 CÁCH THÊM WISHLIST (5 LEVELS):*
 
 *Cú pháp:* `/wishadd [tên] [giá] [priority]`
 
-*Ví dụ:*
-• `/wishadd iPhone 15 Pro 25m prio:1` _(cao)_
-• `/wishadd MacBook prio:2` _(trung bình)_
-• `/wishadd AirPods` _(thấp - mặc định)_
+*VÍ DỤ:*
+• `/wishadd iPhone 15 Pro 25m prio:1` _(Level 1 - Untouchable)_
+• `/wishadd MacBook prio:2` _(Level 2 - Next Sale)_
+• `/wishadd AirPods prio:3` _(Level 3 - Want Soon)_
+• `/wishadd Keyboard prio:4` _(Level 4 - Want Eventually)_
+• `/wishadd Mouse` _(Level 5 - Nice to Have - mặc định)_
 
-🚨 *Priority:* `1=cao`, `2=trung bình`, `3=thấp`""",
+🛍️ *5 LEVELS:*
+• `1` 🔒 - Untouchable (essential/committed)
+• `2` 🚨 - Next Sale (planned for opportunity) 
+• `3` ⚠️ - Want Soon
+• `4` 🔵 - Want Eventually
+• `5` 🌿 - Nice to Have (mặc định)""",
     
     "savings_current": """💎 *TIẾT KIỆM HIỆN TẠI*
 
@@ -377,12 +384,16 @@ Dùng `/editsaving 500k` để đặt số tiền tiết kiệm!""",
         
         "wishlist_usage": """❌ *CÁCH DÙNG WISHLIST KHÔNG ĐÚNG*
 
-*💡 CÚ PHÁP ĐÚNG:*
+*💡 CÚ PHÁP ĐÚNG (5 LEVELS):*
 • `/wishadd iPhone 15 Pro 25m prio:1`
-• `/wishadd iPhone` _(không cần giá)_
+• `/wishadd iPhone prio:2` _(không cần giá)_
 
-🚨 *PRIORITY:*
-`1` = cao 🔴 | `2` = trung bình 🟡 | `3` = thấp 🟢 _(mặc định)_""",
+🛍️ *5 PRIORITY LEVELS:*
+• `1` 🔒 - Untouchable (essential/committed purchases)
+• `2` 🚨 - Next Sale (planned for next sale/opportunity)
+• `3` ⚠️ - Want Soon (want to buy soon)
+• `4` 🔵 - Want Eventually (want to buy eventually)
+• `5` 🌿 - Nice to Have (lowest priority - mặc định)""",
         
         "savings_usage": """❌ *CÁCH DÙNG SAVINGS KHÔNG ĐÚNG*
 
@@ -545,20 +556,31 @@ def get_category_list_display():
     """Get category list for console display"""
     return ", ".join(EXPENSE_CATEGORIES)
 
-# Wishlist priority configuration  
+# Wishlist priority configuration - 5 levels
 WISHLIST_PRIORITIES = {
-    1: {"emoji": "🚨", "name": "Cao", "color": "đỏ"},      # 1 = high priority
-    2: {"emoji": "⚠️", "name": "Trung bình", "color": "vàng"}, # 2 = medium priority
-    3: {"emoji": "🌿", "name": "Thấp", "color": "xanh"}     # 3 = low priority  
+    1: {"emoji": "🔒", "name": "Untouchable", "color": "đỏ đậm", "description": "Essential/committed purchases"},
+    2: {"emoji": "🚨", "name": "Next Sale", "color": "cam", "description": "Planned for next sale/opportunity"},  
+    3: {"emoji": "⚠️", "name": "Want Soon", "color": "vàng", "description": "Want to buy soon"},
+    4: {"emoji": "🔵", "name": "Want Eventually", "color": "xanh dương", "description": "Want to buy eventually"},
+    5: {"emoji": "🌿", "name": "Nice to Have", "color": "xanh lá", "description": "Nice to have (lowest priority)"}
 }
 
 def get_priority_emoji(priority):
     """Get emoji for wishlist priority"""
-    return WISHLIST_PRIORITIES.get(priority, {}).get("emoji", "🟢")
+    return WISHLIST_PRIORITIES.get(priority, {}).get("emoji", "🌿")
 
 def get_priority_name(priority):
     """Get name for wishlist priority"""
-    return WISHLIST_PRIORITIES.get(priority, {}).get("name", "Thấp")
+    return WISHLIST_PRIORITIES.get(priority, {}).get("name", "Nice to Have")
+
+def get_priority_description(priority):
+    """Get description for wishlist priority"""
+    return WISHLIST_PRIORITIES.get(priority, {}).get("description", "Nice to have")
+
+def get_priority_levels_help():
+    """Get formatted priority levels for help display"""
+    return "\n".join([f"• `{level}` {info['emoji']} - {info['name']}: {info['description']}" 
+                     for level, info in WISHLIST_PRIORITIES.items()])
 
 # =============================================================================
 # OTHER CONFIGURATION

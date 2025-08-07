@@ -14,7 +14,8 @@ from .wishlist_handlers import (
     wishlist_add_command,
     wishlist_view_command,
     wishlist_remove_command,
-    get_wishlist_priority1_sum
+    get_wishlist_priority_sums,
+    get_wishlist_priority1_sum  # Backward compatibility
 )
 
 from .subscription_handlers import (
@@ -51,7 +52,8 @@ __all__ = [
     "wishlist_add_command",
     "wishlist_view_command", 
     "wishlist_remove_command",
-    "get_wishlist_priority1_sum",
+    "get_wishlist_priority_sums",
+    "get_wishlist_priority1_sum",  # Backward compatibility
     
     # Subscription handlers
     "subscription_add_command",
