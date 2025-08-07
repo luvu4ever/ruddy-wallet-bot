@@ -117,7 +117,7 @@ def calculate_remaining_budget(user_id, month_start):
         
         return remaining_budget
         
-    except:
+    except Exception:
         return {}
 
 def get_total_budget(user_id):
@@ -129,5 +129,5 @@ def get_total_budget(user_id):
         
         total = sum(float(budget["budget_amount"]) for budget in budget_data.data)
         return total
-    except:
+    except Exception:
         return 0

@@ -80,7 +80,7 @@ async def subscription_remove_command(update: Update, context: ContextTypes.DEFA
     
     try:
         item_index = int(args[0]) - 1
-    except:
+    except (ValueError, TypeError):
         await send_formatted_message(update, "❌ Vui lòng nhập số hợp lệ")
         return
     

@@ -27,10 +27,10 @@ async def send_formatted_message(update: Update, message: str, parse_mode: Parse
     """Send formatted message with fallback"""
     try:
         await update.message.reply_text(message, parse_mode=parse_mode)
-    except:
+    except Exception:
         try:
             await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
-        except:
+        except Exception:
             await update.message.reply_text(message)
 
 async def check_authorization(update: Update) -> bool:
@@ -80,7 +80,7 @@ def split_long_message(message: str, max_length: int = 4000) -> list[str]:
     
     return chunks
 
-async def send_long_message(update: Update, message: str):
+async def send_long_message(update: Update, message: str, continuation_prefix: str = "📝 *Tiếp tục...*\n\n"):
     """Send long message, splitting if necessary"""
     chunks = split_long_message(message)
     
@@ -88,7 +88,7 @@ async def send_long_message(update: Update, message: str):
         if i == 0:
             await send_formatted_message(update, chunk)
         else:
-            continuation = "📝 *Tiếp tục...*\n\n" + chunk
+            continuation = continuation_prefix + chunk
             await send_formatted_message(update, continuation)
 
 def get_month_date_range(year: int, month: int) -> tuple:

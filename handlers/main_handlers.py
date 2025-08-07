@@ -51,16 +51,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if message_type == "expenses":
         # Save expenses
         for expense in parsed_data.get("expenses", []):
-            expense_data = {
-                "user_id": user_id,
-                "amount": expense["amount"],
-                "description": expense["description"],
-                "category": expense.get("category", "khác"),
-                "date": date.today().isoformat()
-            }
-            
-            db.insert_expense(expense_data)
-            responses.append(f"💰 Spent: {format_currency(expense['amount'])} - {expense['description']} ({expense.get('category', 'khác')})")
+            try:
+                expense_data = {
+                    "user_id": user_id,
+                    "amount": expense["amount"],
+                    "description": expense["description"],
+                    "category": expense.get("category", "khác"),
+                    "date": date.today().isoformat()
+                }
+                
+                db.insert_expense(expense_data)
+                responses.append(f"💰 Spent: {format_currency(expense['amount'])} - {expense['description']} ({expense.get('category', 'khác')})")
+            except Exception as e:
+                # Handle specific expense processing errors
+                logging.error(f"Error processing expense: {e}")
+                responses.append("❌ Lỗi khi lưu chi tiêu")
     else:
         responses.append(get_message("unknown_message"))
     
@@ -531,44 +536,56 @@ def _find_matching_category(category_input: str) -> str:
         return category_input
     
     # Try fuzzy matching with lower cutoff for better Vietnamese matching
-    close_matches = get_close_matches(category_input, EXPENSE_CATEGORIES, n=1, cutoff=0.4)
-    if close_matches:
-        return close_matches[0]
+    try:
+        close_matches = get_close_matches(category_input, EXPENSE_CATEGORIES, n=1, cutoff=0.4)
+        if close_matches:
+            return close_matches[0]
+    except Exception as e:
+        logging.error(f"Error in fuzzy matching: {e}")
     
     # Try partial matching - check if input is contained in any category
-    for category in EXPENSE_CATEGORIES:
-        if category_input in category or category in category_input:
-            return category
+    try:
+        for category in EXPENSE_CATEGORIES:
+            if category_input in category or category in category_input:
+                return category
+    except Exception as e:
+        logging.error(f"Error in partial matching: {e}")
     
     # Try matching without Vietnamese accents/spaces
-    simplified_input = category_input.replace(" ", "").replace("ă", "a").replace("ê", "e").replace("ô", "o")
-    for category in EXPENSE_CATEGORIES:
-        simplified_category = category.replace(" ", "").replace("ă", "a").replace("ê", "e").replace("ô", "o")
-        if simplified_input == simplified_category:
-            return category
+    try:
+        simplified_input = category_input.replace(" ", "").replace("ă", "a").replace("ê", "e").replace("ô", "o")
+        for category in EXPENSE_CATEGORIES:
+            simplified_category = category.replace(" ", "").replace("ă", "a").replace("ê", "e").replace("ô", "o")
+            if simplified_input == simplified_category:
+                return category
+    except Exception as e:
+        logging.error(f"Error in simplified matching: {e}")
     
     # Try common variations
-    variations = {
-        "an": "ăn uống",
-        "anuong": "ăn uống", 
-        "food": "ăn uống",
-        "meo": "mèo",
-        "cat": "mèo",
-        "congtrinh": "công trình",
-        "construction": "công trình",
-        "dichuyển": "di chuyển",
-        "dichuyen": "di chuyển",
-        "transport": "di chuyển",
-        "hoadon": "hóa đơn",
-        "bills": "hóa đơn",
-        "canhan": "cá nhân",
-        "personal": "cá nhân",
-        "linhtinh": "linh tinh",
-        "misc": "linh tinh"
-    }
-    
-    if category_input in variations:
-        return variations[category_input]
+    try:
+        variations = {
+            "an": "ăn uống",
+            "anuong": "ăn uống", 
+            "food": "ăn uống",
+            "meo": "mèo",
+            "cat": "mèo",
+            "congtrinh": "công trình",
+            "construction": "công trình",
+            "dichuyển": "di chuyển",
+            "dichuyen": "di chuyển",
+            "transport": "di chuyển",
+            "hoadon": "hóa đơn",
+            "bills": "hóa đơn",
+            "canhan": "cá nhân",
+            "personal": "cá nhân",
+            "linhtinh": "linh tinh",
+            "misc": "linh tinh"
+        }
+        
+        if category_input in variations:
+            return variations[category_input]
+    except Exception as e:
+        logging.error(f"Error in variations matching: {e}")
     
     return None
 

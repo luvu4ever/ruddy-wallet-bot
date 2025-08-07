@@ -82,7 +82,7 @@ def calculate_income_by_type(user_id, month_start):
             "general": general_income,
             "total": construction_income + general_income
         }
-    except:
+    except Exception:
         return {"construction": 0, "general": 0, "total": 0}
 
 def calculate_expenses_by_income_type(user_id, month_start):
@@ -108,5 +108,5 @@ def calculate_expenses_by_income_type(user_id, month_start):
             "general": general_expenses,
             "total": construction_expenses + general_expenses
         }
-    except:
+    except Exception:
         return {"construction": 0, "general": 0, "total": 0}

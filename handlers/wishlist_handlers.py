@@ -32,7 +32,7 @@ async def wishlist_add_command(update: Update, context: ContextTypes.DEFAULT_TYP
                 prio_value = int(arg.split(':')[1])
                 if 1 <= prio_value <= 5:
                     priority = prio_value
-            except:
+            except (ValueError, IndexError):
                 pass
         else:
             item_args.append(arg)
@@ -50,7 +50,7 @@ async def wishlist_add_command(update: Update, context: ContextTypes.DEFAULT_TYP
                 item_name = " ".join(item_args[:-1])
             else:
                 item_name = " ".join(item_args)
-        except:
+        except Exception:
             item_name = " ".join(item_args)
     else:
         item_name = " ".join(item_args)
@@ -111,7 +111,7 @@ async def wishlist_view_command(update: Update, context: ContextTypes.DEFAULT_TY
             priority = int(priority)
             if priority < 1 or priority > 5:
                 priority = 5
-        except:
+        except (ValueError, TypeError):
             priority = 5
         
         levels[priority].append(item)
@@ -125,7 +125,7 @@ async def wishlist_view_command(update: Update, context: ContextTypes.DEFAULT_TY
             if price:
                 try:
                     total += float(price)
-                except:
+                except (ValueError, TypeError):
                     pass
         level_sums[level] = total
     
@@ -209,7 +209,7 @@ async def wishlist_remove_command(update: Update, context: ContextTypes.DEFAULT_
     
     try:
         item_index = int(args[0]) - 1
-    except:
+    except (ValueError, TypeError):
         await send_formatted_message(update, "❌ Vui lòng nhập số hợp lệ")
         return
     
@@ -249,13 +249,13 @@ def get_wishlist_priority_sums(user_id):
             
             try:
                 price = float(price)
-            except:
+            except (ValueError, TypeError):
                 continue
             
             priority = item.get("priority", 5)
             try:
                 priority = int(priority)
-            except:
+            except (ValueError, TypeError):
                 priority = 5
             
             if priority == 1:
@@ -268,7 +268,7 @@ def get_wishlist_priority_sums(user_id):
             "level2": level2_sum,
             "level1_and_2": level1_sum + level2_sum
         }
-    except:
+    except Exception:
         return {"level1": 0, "level2": 0, "level1_and_2": 0}
 
 def get_simple_financial_data(user_id):
@@ -286,7 +286,7 @@ def get_simple_financial_data(user_id):
             for expense in expenses_data.data:
                 try:
                     total_expenses += float(expense["amount"])
-                except:
+                except (ValueError, TypeError):
                     pass
         
         # Get income
@@ -296,14 +296,14 @@ def get_simple_financial_data(user_id):
             for income in income_data.data:
                 try:
                     total_income += float(income["amount"])
-                except:
+                except (ValueError, TypeError):
                     pass
         
         return {
             "income": total_income,
             "expenses": total_expenses
         }
-    except:
+    except Exception:
         return {
             "income": 0,
             "expenses": 0

@@ -72,9 +72,6 @@ MESSAGE_TEMPLATES = {
 }
 
 # Simple formatting functions
-def format_currency(amount: float) -> str:
-    return f"{amount:,.0f}đ"
-
 def format_budget_info(remaining_budget, category):
     if category not in remaining_budget:
         return ""
@@ -101,6 +98,11 @@ def format_expense_item(expense):
         description=description,
         amount=format_currency(amount)
     )
+
+# Currency formatting - single source of truth
+def format_currency(amount: float) -> str:
+    """Format currency in Vietnamese style"""
+    return f"{amount:,.0f}đ"
 
 # =============================================================================
 # BOT MESSAGES - SIMPLIFIED
@@ -292,13 +294,6 @@ ERROR_MESSAGES = {
 def get_category_list_display():
     """Get category list for console display"""
     return ", ".join(EXPENSE_CATEGORIES)
-
-def get_startup_message(key, **kwargs):
-    """Get a startup message with optional formatting"""
-    message = STARTUP_MESSAGES.get(key, f"Startup message '{key}' not found")
-    if kwargs:
-        return message.format(**kwargs)
-    return message
 
 def get_startup_message(key, **kwargs):
     """Get a startup message with optional formatting"""
