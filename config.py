@@ -134,6 +134,10 @@ BOT_MESSAGES = {
 💰 `/income salary 3m` → lương tháng
 🏗️ `/income construction 2m` → thu nhập xây dựng
 
+*💳 TÀI KHOẢN:*
+📊 `/account` → xem tất cả tài khoản
+💰 `/accountedit expense 500k` → cập nhật số dư
+
 *🛍️ WISHLIST (5 LEVELS):*
 ➕ `/wishadd iPhone 25m prio:1` → thêm (level 1-5)
 📋 `/wishlist` → xem + phân tích tài chính
@@ -252,6 +256,29 @@ def get_priority_description(priority):
         5: "Nice to have (lowest priority)"
     }
     return descriptions.get(priority, "Nice to have")
+
+# =============================================================================
+# ACCOUNT TYPES - 4 BASIC ACCOUNTS
+# =============================================================================
+
+ACCOUNT_TYPES = {
+    "expense": {"emoji": "💸", "description": "Chi tiêu"},
+    "saving": {"emoji": "💰", "description": "Tiết kiệm"},
+    "invest": {"emoji": "📈", "description": "Đầu tư"},
+    "construction": {"emoji": "🏗️", "description": "Xây dựng"}
+}
+
+def get_account_emoji(account_type):
+    """Get emoji for account type"""
+    return ACCOUNT_TYPES.get(account_type, {}).get("emoji", "💳")
+
+def get_account_description(account_type):
+    """Get description for account type"""
+    return ACCOUNT_TYPES.get(account_type, {}).get("description", "Tài khoản")
+
+def get_all_account_types():
+    """Get all account types for display"""
+    return list(ACCOUNT_TYPES.keys())
 
 # =============================================================================
 # HELPER FUNCTIONS

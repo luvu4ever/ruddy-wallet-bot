@@ -37,6 +37,11 @@ from .income_handlers import (
     calculate_expenses_by_income_type
 )
 
+from .account_handlers import (
+    account_command,
+    account_edit_command
+)
+
 __all__ = [
     # Main handlers
     "start",
@@ -69,5 +74,9 @@ __all__ = [
     # Income handlers
     "income_command",
     "calculate_income_by_type",
-    "calculate_expenses_by_income_type"
+    "calculate_expenses_by_income_type",
+    
+    # Account handlers
+    "account_command",
+    "account_edit_command"
 ]

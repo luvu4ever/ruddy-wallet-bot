@@ -80,5 +80,21 @@ class DatabaseManager:
         """Get budget plan for specific category"""
         return self.supabase.table("budget_plans").select("*").eq("user_id", user_id).eq("category", category).execute()
 
+    def get_budget_plan_by_category(self, user_id, category):
+        """Get budget plan for specific category"""
+        return self.supabase.table("budget_plans").select("*").eq("user_id", user_id).eq("category", category).execute()
+    
+    def get_accounts(self, user_id):
+        """Get all accounts for user"""
+        return self.supabase.table("accounts").select("*").eq("user_id", user_id).execute()
+    
+    def upsert_account(self, account_data):
+        """Insert or update account record"""
+        return self.supabase.table("accounts").upsert(account_data).execute()
+    
+    def get_account_by_type(self, user_id, account_type):
+        """Get specific account by type"""
+        return self.supabase.table("accounts").select("*").eq("user_id", user_id).eq("account_type", account_type).execute()
+
 # Global database instance
 db = DatabaseManager()
