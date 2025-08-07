@@ -414,9 +414,11 @@ async def _show_all_categories_expenses(update: Update, user_id: int):
     from .wishlist_handlers import get_wishlist_priority_sums
     from .income_handlers import calculate_income_by_type, calculate_expenses_by_income_type
     
-    # Calculate remaining budget and group expenses
+    # Calculate data
     remaining_budget = calculate_remaining_budget(user_id, month_start)
     wishlist_sums = get_wishlist_priority_sums(user_id)
+    income_breakdown = calculate_income_by_type(user_id, month_start)
+    expense_breakdown = calculate_expenses_by_income_type(user_id, month_start)
     
     expenses_by_category = defaultdict(list)
     total_month = 0
@@ -458,54 +460,48 @@ async def _show_all_categories_expenses(update: Update, user_id: int):
         
         categories_content.append(header + "\n" + "\n".join(expense_items))
     
-    # Calculate breakdown
-    income_breakdown = calculate_income_by_type(user_id, month_start)
-    expense_breakdown = calculate_expenses_by_income_type(user_id, month_start)
-    
-    # Calculate net savings and available money after planned purchases
+    # Calculate financial data
     total_income = income_breakdown["total"]
     total_expenses = expense_breakdown["total"]
     net_savings = total_income - total_expenses
     
-    # Calculate money left after different wishlist levels
+    # Calculate wishlist scenarios
     money_after_level1 = net_savings - wishlist_sums["level1"]
     money_after_level1_and_2 = net_savings - wishlist_sums["level1_and_2"]
     
-    # Get budget info
+    # Budget analysis
     total_budget = get_total_budget(user_id)
     budget_remaining = total_budget - total_expenses if total_budget > 0 else 0
     money_after_all = budget_remaining - wishlist_sums["level1_and_2"]
     
-    # Format enhanced wishlist section with 5-level analysis
+    # Build wishlist section
     wishlist_section = ""
     if wishlist_sums["level1"] > 0 or wishlist_sums["level2"] > 0:
-        wishlist_section += f"\n\n🛍️ *WISHLIST ANALYSIS:*"
+        wishlist_section += "\n\n🛍️ *WISHLIST ANALYSIS:*"
         
         if wishlist_sums["level1"] > 0:
-            wishlist_section += f"\n🔒 *Level 1 (Untouchable):* `{format_currency(wishlist_sums['level1'])}`"
+            wishlist_section += f"\n🔒 *Level 1:* `{format_currency(wishlist_sums['level1'])}`"
         
         if wishlist_sums["level2"] > 0:
-            wishlist_section += f"\n🚨 *Level 2 (Next Sale):* `{format_currency(wishlist_sums['level2'])}`"
+            wishlist_section += f"\n🚨 *Level 2:* `{format_currency(wishlist_sums['level2'])}`"
         
-        # Money left analysis
         if money_after_level1 >= 0:
             wishlist_section += f"\n✅ *Sau Level 1:* `{format_currency(money_after_level1)}`"
         else:
-            wishlist_section += f"\n⚠️ *Thiếu cho Level 1:* `{format_currency(abs(money_after_level1))}`"
+            wishlist_section += f"\n⚠️ *Thiếu Level 1:* `{format_currency(abs(money_after_level1))}`"
         
         if money_after_level1_and_2 >= 0:
             wishlist_section += f"\n✅ *Sau Level 1+2:* `{format_currency(money_after_level1_and_2)}`"
         else:
-            wishlist_section += f"\n⚠️ *Thiếu cho Level 1+2:* `{format_currency(abs(money_after_level1_and_2))}`"
+            wishlist_section += f"\n⚠️ *Thiếu Level 1+2:* `{format_currency(abs(money_after_level1_and_2))}`"
         
-        # Budget + wishlist analysis
         if total_budget > 0:
             if money_after_all >= 0:
                 wishlist_section += f"\n💰 *Sau Budget+Level1+2:* `{format_currency(money_after_all)}`"
             else:
                 wishlist_section += f"\n🔴 *Vượt Budget+Level1+2:* `{format_currency(abs(money_after_all))}`"
     
-    # Create final message using template with wishlist info
+    # Create message
     message = get_template("list_overview",
         month=today.month,
         year=today.year,
