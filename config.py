@@ -53,7 +53,7 @@ MESSAGE_TEMPLATES = {
 
 📊 *PHÂN TÍCH THU CHI:*
 🏗️ *CÔNG TRÌNH:* Thu `{construction_income}` - Chi `{construction_expense}` = `{construction_net}`
-💰 *KHÁC:* Thu `{general_income}` - Chi `{general_expense}` = `{general_net}`
+💰 *KHÁC:* Thu `{general_income}` - Chi `{general_expense}` = `{general_net}`{wishlist_section}
 
 💡 _Dùng `/list [danh mục]` để xem tất cả giao dịch của danh mục_""",
 
@@ -115,6 +115,9 @@ Không có chi tiêu nào cho danh mục này trong tháng {month}/{year}
 
 💎 *TIẾT KIỆM MỚI*
 💰 *Số tiền:* {amount}""",
+
+    "wishlist_planned_section": """
+🚨 *CẦN TIỀN CHO KẾ HOẠCH:* `{amount}`""",
 }
 
 # Budget info formatting
@@ -153,6 +156,14 @@ def format_expense_item(expense, date_format="day_month"):
 def format_currency(amount: float) -> str:
     """Format currency in Vietnamese style"""
     return f"{amount:,.0f}đ"
+
+def format_wishlist_section(wishlist_prio1_sum: float) -> str:
+    """Format wishlist priority 1 section for list overview"""
+    if wishlist_prio1_sum > 0:
+        return MESSAGE_TEMPLATES["wishlist_planned_section"].format(
+            amount=format_currency(wishlist_prio1_sum)
+        )
+    return ""
 
 # =============================================================================
 # ORIGINAL BOT MESSAGES - ENHANCED WITH CLEAN FORMATTING

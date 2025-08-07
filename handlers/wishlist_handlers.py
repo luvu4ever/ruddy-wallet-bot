@@ -106,7 +106,10 @@ async def wishlist_view_command(update: Update, context: ContextTypes.DEFAULT_TY
     # Group by priority and sort by price within each priority
     items_by_priority = _group_items_by_priority(active_items)
     
-    wishlist_text = _format_wishlist_display(items_by_priority)
+    # Calculate priority 1 sum for planned purchases
+    prio1_sum = sum(item.get("estimated_price", 0) or 0 for item in items_by_priority[1])
+    
+    wishlist_text = _format_wishlist_display(items_by_priority, prio1_sum)
     
     await send_formatted_message(update, wishlist_text)
 
@@ -164,6 +167,28 @@ async def wishlist_remove_command(update: Update, context: ContextTypes.DEFAULT_
     
     await send_formatted_message(update, f"✅ Đã xóa *{item_name}* khỏi wishlist!")
 
+def get_wishlist_priority1_sum(user_id):
+    """Get sum of priority 1 wishlist items for display in other commands"""
+    try:
+        wishlist_data = db.get_wishlist(user_id)
+        if not wishlist_data.data:
+            return 0
+        
+        # Filter for priority 1 items that are not purchased and have prices
+        prio1_items = [
+            item for item in wishlist_data.data 
+            if (item.get("priority", 3) == 1 and 
+                not item.get("purchased", False) and 
+                item.get("estimated_price") is not None)
+        ]
+        
+        total = sum(float(item["estimated_price"]) for item in prio1_items)
+        return total
+        
+    except Exception as e:
+        print(f"Error calculating wishlist priority 1 sum: {e}")
+        return 0
+
 # Helper functions
 def _parse_priority(arg: str) -> tuple[bool, int, str]:
     """Parse priority argument"""
@@ -205,9 +230,15 @@ def _group_items_by_priority(active_items: list) -> dict:
     
     return items_by_priority
 
-def _format_wishlist_display(items_by_priority: dict) -> str:
-    """Format wishlist for display"""
+def _format_wishlist_display(items_by_priority: dict, prio1_sum: float = 0) -> str:
+    """Format wishlist for display with priority 1 sum"""
     wishlist_text = "🛍️ *Wishlist của bạn:*\n\n"
+    
+    # Add priority 1 planned purchases summary at the top if there are any
+    if prio1_sum > 0:
+        wishlist_text += f"💰 *CẦN TIỀN CHO KẾ HOẠCH:* `{format_currency(prio1_sum)}`\n"
+        wishlist_text += "🚨 _Priority 1 - Đã lên kế hoạch mua_\n\n"
+    
     total_wishlist = 0
     item_count = 0
     
@@ -220,7 +251,11 @@ def _format_wishlist_display(items_by_priority: dict) -> str:
         priority_emoji = get_priority_emoji(priority)
         priority_name = get_priority_name(priority)
         
-        wishlist_text += f"{priority_emoji} *Priority {priority} - {priority_name}:*\n"
+        # Special header for priority 1
+        if priority == 1:
+            wishlist_text += f"{priority_emoji} *Priority {priority} - {priority_name} (ĐÃ LÊN KẾ HOẠCH):*\n"
+        else:
+            wishlist_text += f"{priority_emoji} *Priority {priority} - {priority_name}:*\n"
         
         for item in items:
             item_count += 1
@@ -235,8 +270,13 @@ def _format_wishlist_display(items_by_priority: dict) -> str:
         
         wishlist_text += "\n"
     
+    # Summary section
     if total_wishlist > 0:
         wishlist_text += f"💰 *Tổng giá trị*: {format_currency(total_wishlist)}"
+        if prio1_sum > 0 and prio1_sum != total_wishlist:
+            remaining_wishlist = total_wishlist - prio1_sum
+            wishlist_text += f"\n🎯 *Cần cho kế hoạch*: {format_currency(prio1_sum)}"
+            wishlist_text += f"\n💭 *Mong muốn khác*: {format_currency(remaining_wishlist)}"
     
     wishlist_text += f"\n📝 *Tổng số món*: {item_count} sản phẩm"
     
