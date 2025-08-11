@@ -119,5 +119,50 @@ class DatabaseManager:
         """Check if month is already closed"""
         return self.supabase.table("monthly_closures").select("*").eq("user_id", user_id).eq("year", year)
 
+    def update_account_balance(self, user_id, account_type, amount_change, transaction_type, description, reference_id=None):
+        """Update account balance and log transaction"""
+        from datetime import datetime
+        
+        # Get current balance
+        account_data = self.get_account_by_type(user_id, account_type)
+        current_balance = 0
+        
+        if account_data.data:
+            current_balance = float(account_data.data[0].get("current_balance", 0))
+        
+        # Calculate new balance
+        new_balance = current_balance + amount_change  # Negative amount_change for expenses
+        
+        # Update account
+        account_update = {
+            "user_id": user_id,
+            "account_type": account_type,
+            "current_balance": new_balance,
+            "last_updated": datetime.now().isoformat()
+        }
+        
+        result = self.upsert_account(account_update)
+        
+        # Log transaction
+        transaction_data = {
+            "user_id": user_id,
+            "account_type": account_type,
+            "transaction_type": transaction_type,
+            "amount": amount_change,
+            "description": description,
+            "reference_id": reference_id
+        }
+        
+        self.insert_account_transaction(transaction_data)
+        
+        return result, new_balance
+
+    def get_account_balance(self, user_id, account_type):
+        """Get current balance for specific account"""
+        account_data = self.get_account_by_type(user_id, account_type)
+        if account_data.data:
+            return float(account_data.data[0].get("current_balance", 0))
+        return 0
+
 # Global database instance
 db = DatabaseManager()

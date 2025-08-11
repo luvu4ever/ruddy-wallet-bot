@@ -300,6 +300,32 @@ def get_account_emoji_enhanced(account_type):
     """Get enhanced emoji for account type"""
     return ACCOUNT_DESCRIPTIONS.get(account_type, {}).get("emoji", "💳")
 
+CATEGORY_TO_ACCOUNT = {
+    # Need account categories (essential expenses)
+    "ăn uống": "need",
+    "di chuyển": "need", 
+    "hóa đọn": "need",
+    "mèo": "need",
+    
+    # Fun account categories (entertainment/personal)
+    "cá nhân": "fun",
+    "linh tinh": "fun",
+    
+    # Construction account
+    "công trình": "construction",
+    
+    # Default fallback
+    "khác": "fun"
+}
+
+def get_account_for_category(category):
+    """Get account type for expense category"""
+    return CATEGORY_TO_ACCOUNT.get(category, "fun")
+
+def get_categories_for_account(account_type):
+    """Get list of categories that use this account"""
+    return [cat for cat, acc in CATEGORY_TO_ACCOUNT.items() if acc == account_type]
+
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
