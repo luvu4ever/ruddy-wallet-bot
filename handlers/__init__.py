@@ -1,4 +1,3 @@
-# handlers/__init__.py
 from .main_handlers import (
     start,
     handle_message,
@@ -42,10 +41,17 @@ from .account_handlers import (
     account_edit_command
 )
 
+# NEW: Add allocation handlers
+from .allocation_handlers import (
+    allocation_command,
+    get_user_allocations,
+    validate_allocations
+)
+
 __all__ = [
     # Main handlers
     "start",
-    "handle_message", 
+    "handle_message",
     "savings_command",
     "edit_savings_command",
     "category_command",
@@ -55,7 +61,7 @@ __all__ = [
     
     # Wishlist handlers
     "wishlist_add_command",
-    "wishlist_view_command", 
+    "wishlist_view_command",
     "wishlist_remove_command",
     "get_wishlist_priority_sums",
     "get_wishlist_priority1_sum",  # Backward compatibility
@@ -78,5 +84,10 @@ __all__ = [
     
     # Account handlers
     "account_command",
-    "account_edit_command"
+    "account_edit_command",
+    
+    # Allocation handlers
+    "allocation_command",
+    "get_user_allocations",
+    "validate_allocations"
 ]

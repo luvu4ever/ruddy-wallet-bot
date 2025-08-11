@@ -96,5 +96,28 @@ class DatabaseManager:
         """Get specific account by type"""
         return self.supabase.table("accounts").select("*").eq("user_id", user_id).eq("account_type", account_type).execute()
 
+    def get_allocation_settings(self, user_id):
+        """Get user's allocation percentages"""
+        return self.supabase.table("allocation_settings").select("*").eq("user_id", user_id).execute()
+
+    def upsert_allocation_setting(self, allocation_data):
+        """Insert or update allocation setting"""
+        return self.supabase.table("allocation_settings").upsert(allocation_data).execute()
+
+    def insert_account_transaction(self, transaction_data):
+        """Insert account transaction log"""
+        return self.supabase.table("account_transactions").insert(transaction_data).execute()
+
+    def get_account_transactions(self, user_id, account_type=None, limit=50):
+        """Get account transaction history"""
+        query = self.supabase.table("account_transactions").select("*").eq("user_id", user_id)
+        if account_type:
+            query = query.eq("account_type", account_type)
+        return query.order("created_at", desc=True).limit(limit).execute()
+
+    def get_monthly_closure(self, user_id, year, month):
+        """Check if month is already closed"""
+        return self.supabase.table("monthly_closures").select("*").eq("user_id", user_id).eq("year", year)
+
 # Global database instance
 db = DatabaseManager()
