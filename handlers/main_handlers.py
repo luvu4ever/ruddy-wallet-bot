@@ -35,14 +35,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_formatted_message(update, get_message("welcome"))
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Enhanced message handler with account-based expense processing"""
+    """Enhanced message handler with account-based expense processing and month-end confirmation"""
     if not await check_authorization(update):
         return
     
     user_id = update.effective_user.id
     message_text = update.message.text
     
-    # Parse with Gemini
+    # Check for month-end confirmation first
+    from .month_end_handlers import handle_month_end_confirmation
+    if await handle_month_end_confirmation(update, context, message_text):
+        return  # Message was handled as month-end confirmation
+    
+    # Parse with Gemini for regular expense processing
     parsed_data = parse_message_with_gemini(message_text, user_id)
     
     responses = []
@@ -67,7 +72,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if responses:
         await update.message.reply_text("\n".join(responses))
-
+        
 async def _process_expense_with_account_validation(user_id, amount, description, category):
     """Process expense with account balance validation"""
     from config import get_account_for_category, get_account_emoji_enhanced, get_account_name_enhanced, format_currency, get_category_emoji

@@ -234,6 +234,22 @@ class DatabaseManager:
         if account_data.data:
             return float(account_data.data[0].get("current_balance", 0))
         return 0
+        
+    def check_monthly_closure(self, user_id, year, month):
+        """Check if month is already closed"""
+        return self.supabase.table("monthly_closures").select("*").eq("user_id", user_id).eq("year", year).eq("month", month).execute()
+
+    def insert_monthly_closure(self, closure_data):
+        """Insert monthly closure record"""
+        return self.supabase.table("monthly_closures").insert(closure_data).execute()
+
+    def get_monthly_closures_history(self, user_id, limit=6):
+        """Get monthly closures history for user"""
+        return self.supabase.table("monthly_closures").select("*").eq("user_id", user_id).order("year", desc=True).order("month", desc=True).limit(limit).execute()
+
+    def get_monthly_closure_by_period(self, user_id, year, month):
+        """Get specific monthly closure"""
+        return self.supabase.table("monthly_closures").select("*").eq("user_id", user_id).eq("year", year).eq("month", month).execute()
 
 # Global database instance
 db = DatabaseManager()
