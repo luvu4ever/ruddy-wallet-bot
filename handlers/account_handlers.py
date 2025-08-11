@@ -176,47 +176,97 @@ async def account_edit_command(update: Update, context: ContextTypes.DEFAULT_TYP
         await send_formatted_message(update, "❌ Số tiền không hợp lệ. VD: `/accountedit need 500k`")
         return
     
-    # Update account
-    account_data = {
+    # Get current balance for calculating the difference
+    current_balance = db.get_account_balance(user_id, matched_account)
+    balance_change = new_balance - current_balance
+    
+    try:
+        # Update account using the safer method
+        result, final_balance = await _safe_update_account_balance(
+            user_id, matched_account, new_balance, "manual_adjustment",
+            f"Manual adjustment to {format_currency(new_balance)}"
+        )
+        
+        # Response
+        account_info = ACCOUNT_DESCRIPTIONS.get(matched_account, {"emoji": "💳", "name": matched_account.title()})
+        
+        message = f"""✅ *ĐÃ CẬP NHẬT TÀI KHOẢN!*
+
+{account_info['emoji']} *{account_info['name']}*
+💰 *Số dư cũ:* `{format_currency(current_balance)}`
+💰 *Số dư mới:* `{format_currency(final_balance)}`
+📊 *Thay đổi:* `{format_currency(balance_change)}`
+📅 *Cập nhật:* {datetime.now().strftime('%d/%m/%Y %H:%M')}"""
+        
+        await send_formatted_message(update, message)
+        
+    except Exception as e:
+        import logging
+        logging.error(f"Account edit error: {e}")
+        await send_formatted_message(update, "❌ Lỗi khi cập nhật tài khoản. Vui lòng thử lại.")
+
+
+async def _safe_update_account_balance(user_id, account_type, new_balance, transaction_type, description):
+    """Safely update account balance with proper conflict handling"""
+    
+    # Get current account data
+    account_data = db.get_account_by_type(user_id, account_type)
+    
+    account_update = {
         "user_id": user_id,
-        "account_type": matched_account,
+        "account_type": account_type,
         "current_balance": new_balance,
         "last_updated": datetime.now().isoformat()
     }
     
-    db.upsert_account(account_data)
+    try:
+        # Try upsert first
+        result = db.upsert_account(account_update)
+    except Exception as e:
+        # If upsert fails, try manual update/insert
+        if account_data.data:
+            # Update existing record
+            result = db.supabase.table("accounts").update({
+                "current_balance": new_balance,
+                "last_updated": datetime.now().isoformat()
+            }).eq("user_id", user_id).eq("account_type", account_type).execute()
+        else:
+            # Insert new record
+            result = db.supabase.table("accounts").insert(account_update).execute()
     
     # Log transaction
     transaction_data = {
         "user_id": user_id,
-        "account_type": matched_account,
-        "transaction_type": "manual_adjustment",
-        "amount": new_balance,  # Log the new balance, not the change
-        "description": f"Manual adjustment to {format_currency(new_balance)}"
+        "account_type": account_type,
+        "transaction_type": transaction_type,
+        "amount": new_balance,  # Log the new balance for manual adjustments
+        "description": description
     }
     
     db.insert_account_transaction(transaction_data)
     
-    # Response
-    account_info = ACCOUNT_DESCRIPTIONS.get(matched_account, {"emoji": "💳", "name": matched_account.title()})
-    
-    message = f"""✅ *ĐÃ CẬP NHẬT TÀI KHOẢN!*
+    return result, new_balance
 
-{account_info['emoji']} *{account_info['name']}*
-💰 *Số dư mới:* `{format_currency(new_balance)}`
-📅 *Cập nhật:* {datetime.now().strftime('%d/%m/%Y %H:%M')}"""
-    
-    await send_formatted_message(update, message)
 
 async def _initialize_all_accounts(user_id):
-    """Initialize all account types with 0 balance"""
+    """Initialize all account types with 0 balance - safer version"""
     all_account_types = ["need", "fun", "saving", "invest", "construction"]
     
     for account_type in all_account_types:
-        account_data = {
-            "user_id": user_id,
-            "account_type": account_type,
-            "current_balance": 0,
-            "last_updated": datetime.now().isoformat()
-        }
-        db.upsert_account(account_data)
+        # Check if account already exists
+        existing_account = db.get_account_by_type(user_id, account_type)
+        
+        if not existing_account.data:
+            # Only create if it doesn't exist
+            account_data = {
+                "user_id": user_id,
+                "account_type": account_type,
+                "current_balance": 0,
+                "last_updated": datetime.now().isoformat()
+            }
+            try:
+                db.supabase.table("accounts").insert(account_data).execute()
+            except Exception as e:
+                import logging
+                logging.error(f"Error initializing account {account_type} for user {user_id}: {e}")
+                # Continue with other accounts even if one fails
