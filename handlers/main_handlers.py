@@ -35,6 +35,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_formatted_message(update, get_message("welcome"))
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Enhanced message handler with account-based expense processing"""
     if not await check_authorization(update):
         return
     
@@ -49,28 +50,84 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Handle different message types
     if message_type == "expenses":
-        # Save expenses
+        # Process expenses with account validation
         for expense in parsed_data.get("expenses", []):
             try:
-                expense_data = {
-                    "user_id": user_id,
-                    "amount": expense["amount"],
-                    "description": expense["description"],
-                    "category": expense.get("category", "khác"),
-                    "date": date.today().isoformat()
-                }
+                expense_result = await _process_expense_with_account_validation(
+                    user_id, expense["amount"], expense["description"], 
+                    expense.get("category", "khác")
+                )
+                responses.append(expense_result)
                 
-                db.insert_expense(expense_data)
-                responses.append(f"💰 Spent: {format_currency(expense['amount'])} - {expense['description']} ({expense.get('category', 'khác')})")
             except Exception as e:
-                # Handle specific expense processing errors
                 logging.error(f"Error processing expense: {e}")
-                responses.append("❌ Lỗi khi lưu chi tiêu")
+                responses.append("❌ Lỗi khi xử lý chi tiêu")
     else:
         responses.append(get_message("unknown_message"))
     
     if responses:
         await update.message.reply_text("\n".join(responses))
+
+async def _process_expense_with_account_validation(user_id, amount, description, category):
+    """Process expense with account balance validation"""
+    from config import get_account_for_category, get_account_emoji_enhanced, get_account_name_enhanced, format_currency, get_category_emoji
+    from datetime import date
+    
+    # Get account for this category
+    account_type = get_account_for_category(category)
+
+    print(f"DEBUG - Category '{category}' maps to account '{account_type}'")
+    
+    # Check account balance
+    current_balance = db.get_account_balance(user_id, account_type)
+    
+    # Validate sufficient funds
+    if current_balance < amount:
+        account_emoji = get_account_emoji_enhanced(account_type)
+        account_name = get_account_name_enhanced(account_type)
+        
+        return f"""❌ *KHÔNG ĐỦ TIỀN!*
+
+💰 *Chi tiêu*: {format_currency(amount)} - {description}
+📂 *Danh mục*: {category} → {account_emoji} {account_name}
+💳 *Số dư hiện tại*: {format_currency(current_balance)}
+⚠️ *Thiếu*: {format_currency(amount - current_balance)}
+
+💡 *GIẢI PHÁP:*
+• `/accountedit {account_type} [số mới]` - Điều chỉnh số dư
+• `/account` - Xem tất cả tài khoản"""
+    
+    # Save expense record
+    expense_data = {
+        "user_id": user_id,
+        "amount": amount,
+        "description": description,
+        "category": category,
+        "date": date.today().isoformat()
+    }
+    
+    expense_result = db.insert_expense(expense_data)
+    expense_id = expense_result.data[0]["id"] if expense_result.data else None
+    
+    # Deduct from account
+    result, new_balance = db.update_account_balance(
+        user_id, account_type, -amount,  # Negative for expense
+        "expense", f"Expense: {description}", expense_id
+    )
+    
+    # Success response with account info
+    account_emoji = get_account_emoji_enhanced(account_type)
+    account_name = get_account_name_enhanced(account_type)
+    category_emoji = get_category_emoji(category)
+    
+    return f"""✅ *ĐÃ GHI CHI TIÊU!*
+
+💰 *Chi tiêu*: {format_currency(amount)} - {description}
+{category_emoji} *Danh mục*: {category}
+{account_emoji} *Từ tài khoản*: {account_name}
+💳 *Số dư còn lại*: {format_currency(new_balance)}
+
+💡 _Xem chi tiết: `/account {account_type}`_"""
 
 async def savings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show current savings amount"""
@@ -403,7 +460,7 @@ async def list_expenses_command(update: Update, context: ContextTypes.DEFAULT_TY
 
 # Helper functions
 async def _show_all_categories_expenses(update: Update, user_id: int):
-    """Show all categories with top 8 items each + budget info + wishlist analysis"""
+    """Show all categories with top 8 items each + budget info + wishlist analysis + account info"""
     today = datetime.now()
     month_start = today.replace(day=1).date()
     
@@ -425,6 +482,21 @@ async def _show_all_categories_expenses(update: Update, user_id: int):
     income_breakdown = calculate_income_by_type(user_id, month_start)
     expense_breakdown = calculate_expenses_by_income_type(user_id, month_start)
     
+    # Get account balances - make sure accounts exist first
+    account_balances = {}
+    all_account_types = ["need", "fun", "construction", "saving", "invest"]
+    
+    # Initialize accounts if they don't exist
+    accounts_data = db.get_accounts(user_id)
+    if not accounts_data.data:
+        await _initialize_all_accounts(user_id)
+    
+    # Get current balances
+    for account_type in all_account_types:
+        account_balances[account_type] = db.get_account_balance(user_id, account_type)
+
+    print(f"DEBUG - Account balances for user {user_id}: {account_balances}")
+    
     expenses_by_category = defaultdict(list)
     total_month = 0
     
@@ -445,13 +517,21 @@ async def _show_all_categories_expenses(update: Update, user_id: int):
         category_emoji = get_category_emoji(category)
         budget_info = format_budget_info(remaining_budget, category)
         
-        # Category header
-        header = get_template("category_header",
-            emoji=category_emoji,
-            category=category.upper(),
-            total=format_currency(category_total),
-            budget_info=budget_info
-        )
+        # Add account info for this category
+        from config import get_account_for_category, get_account_emoji_enhanced, get_account_name_enhanced
+        account_type = get_account_for_category(category)
+        account_balance = account_balances.get(account_type, 0)
+        account_emoji = get_account_emoji_enhanced(account_type)
+        account_name = get_account_name_enhanced(account_type)
+        
+        # Add low balance warning
+        balance_warning = ""
+        if account_balance < 500000:  # Less than 500k
+            balance_warning = f" ⚠️"
+        
+        # Enhanced category header with account info
+        header = f"""{category_emoji} *{category.upper()}* - `{format_currency(category_total)}`{budget_info}
+{account_emoji} _{account_name}: {format_currency(account_balance)}_{balance_warning}"""
         
         # Top 8 items
         items = sorted(expenses_by_category[category], key=lambda x: x["date"], reverse=True)[:8]
@@ -506,7 +586,21 @@ async def _show_all_categories_expenses(update: Update, user_id: int):
             else:
                 wishlist_section += f"\n🔴 *Vượt Budget+Level1+2:* `{format_currency(abs(money_after_all))}`"
     
-    # Create message
+    # Build account summary section - ALWAYS show this
+    spending_total = account_balances.get('need', 0) + account_balances.get('fun', 0)
+    account_section = f"""
+
+💳 *TÀI KHOẢN HIỆN TẠI:*
+🛒 *Tiêu dùng* (Thiết yếu + Giải trí): `{format_currency(spending_total)}`
+🍚 *Thiết yếu*: `{format_currency(account_balances.get('need', 0))}`
+🎮 *Giải trí*: `{format_currency(account_balances.get('fun', 0))}`
+🏗️ *Xây dựng*: `{format_currency(account_balances.get('construction', 0))}`
+💰 *Tiết kiệm*: `{format_currency(account_balances.get('saving', 0))}`
+📈 *Đầu tư*: `{format_currency(account_balances.get('invest', 0))}`"""
+    
+    # Create message - combine wishlist section and account section
+    full_analysis_section = wishlist_section + account_section
+    
     message = get_template("list_overview",
         month=today.month,
         year=today.year,
@@ -518,10 +612,26 @@ async def _show_all_categories_expenses(update: Update, user_id: int):
         general_income=format_currency(income_breakdown["general"]),
         general_expense=format_currency(expense_breakdown["general"]),
         general_net=format_currency(income_breakdown["general"] - expense_breakdown["general"]),
-        wishlist_section=wishlist_section
+        wishlist_section=full_analysis_section  # This now includes both wishlist and account info
     )
     
     await send_long_message(update, message)
+
+# Add this helper function at the end of the file
+async def _initialize_all_accounts(user_id):
+    """Initialize all account types with 0 balance"""
+    from datetime import datetime
+    
+    all_account_types = ["need", "fun", "saving", "invest", "construction"]
+    
+    for account_type in all_account_types:
+        account_data = {
+            "user_id": user_id,
+            "account_type": account_type,
+            "current_balance": 0,
+            "last_updated": datetime.now().isoformat()
+        }
+        db.upsert_account(account_data)
 
 def _find_matching_category(category_input: str) -> str:
     """Find matching category with better Vietnamese support"""
