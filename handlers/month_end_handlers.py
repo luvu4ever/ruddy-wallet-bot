@@ -247,7 +247,7 @@ async def monthhistory_command(update: Update, context: ContextTypes.DEFAULT_TYP
         return
     
     # Build history message
-    message = "📅 *LỊCH SỬ ĐÓNG THÁNG*\n\n"
+    message = "📅 *LỊCH SỬ TIẾT KIỆM THÁNG*\n\n"
     
     for closure in closures_data.data:
         month = closure["month"]
