@@ -3,14 +3,14 @@ from telegram.error import Conflict
 from config import TELEGRAM_BOT_TOKEN
 
 # Import all handlers
-# Import all handlers
 from handlers import (
-    start, handle_message, savings_command, edit_savings_command, 
+    start, handle_message, savings_command, edit_savings_command,
     category_command, help_command, monthly_summary, list_expenses_command,
     wishlist_add_command, wishlist_view_command, wishlist_remove_command,
     subscription_add_command, subscription_list_command, subscription_remove_command,
     budget_command, budget_list_command, income_command,
-    account_command, account_edit_command
+    account_command, account_edit_command,
+    allocation_command
 )
 
 import time
@@ -51,6 +51,9 @@ def main():
         # Account
         application.add_handler(CommandHandler("account", account_command))
         application.add_handler(CommandHandler("accountedit", account_edit_command))
+        
+        # Allocation
+        application.add_handler(CommandHandler("allocation", allocation_command))
         
         # Message handler (must be last)
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))

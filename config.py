@@ -280,6 +280,26 @@ def get_all_account_types():
     """Get all account types for display"""
     return list(ACCOUNT_TYPES.keys())
 
+ACCOUNT_DESCRIPTIONS = {
+    "need": {"emoji": "🍚", "name": "Thiết yếu", "description": "Ăn uống, di chuyển, hóa đơn, mèo"},
+    "fun": {"emoji": "🎮", "name": "Giải trí", "description": "Cá nhân, linh tinh"},
+    "saving": {"emoji": "💰", "name": "Tiết kiệm", "description": "Tiết kiệm tích lũy"},
+    "invest": {"emoji": "📈", "name": "Đầu tư", "description": "Đầu tư dài hạn"},
+    "construction": {"emoji": "🏗️", "name": "Xây dựng", "description": "Thu chi xây dựng"}
+}
+
+def get_account_description_enhanced(account_type):
+    """Get enhanced description for account type"""
+    return ACCOUNT_DESCRIPTIONS.get(account_type, {}).get("description", "Tài khoản")
+
+def get_account_name_enhanced(account_type):
+    """Get enhanced name for account type"""
+    return ACCOUNT_DESCRIPTIONS.get(account_type, {}).get("name", account_type.title())
+
+def get_account_emoji_enhanced(account_type):
+    """Get enhanced emoji for account type"""
+    return ACCOUNT_DESCRIPTIONS.get(account_type, {}).get("emoji", "💳")
+
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================

@@ -7,7 +7,7 @@ from utils import check_authorization, send_formatted_message, safe_parse_amount
 from config import INCOME_TYPES, get_income_emoji, get_message
 
 async def income_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Add income: /income salary 3m lương tháng"""
+    """Enhanced income command with automatic allocation: /income salary 3m lương tháng"""
     if not await check_authorization(update):
         return
     
@@ -39,7 +39,7 @@ async def income_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_formatted_message(update, message)
         return
     
-    # Save income
+    # Save income record
     income_data = {
         "user_id": user_id,
         "amount": amount,
@@ -48,17 +48,101 @@ async def income_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "date": date.today().isoformat()
     }
     
-    db.insert_income(income_data)
+    income_result = db.insert_income(income_data)
+    income_id = income_result.data[0]["id"] if income_result.data else None
+    
+    # Process allocation
+    allocation_message = await _process_income_allocation(user_id, income_type, amount, description, income_id)
     
     # Response
     emoji = get_income_emoji(income_type)
-    message = get_message("income_added", 
-        emoji=emoji, 
-        type=income_type, 
-        amount=format_currency(amount), 
-        description=description)
+    message = f"""✅ *ĐÃ THÊM THU NHẬP!*
+
+{emoji} *{income_type}*: {format_currency(amount)}
+📝 *{description}*
+
+{allocation_message}"""
+    
     await send_formatted_message(update, message)
 
+# Add this helper function to income_handlers.py:
+
+async def _process_income_allocation(user_id, income_type, amount, description, income_id):
+    """Process income allocation to accounts"""
+    
+    if income_type == "construction":
+        # Construction income goes directly to construction account
+        await _add_to_account(user_id, "construction", amount, "income_allocation", 
+                             f"Construction income: {description}", income_id)
+        
+        return f"🏗️ *Đã thêm vào tài khoản xây dựng*: {format_currency(amount)}"
+    
+    else:
+        # Salary/random income gets allocated by percentages
+        from .allocation_handlers import get_user_allocations, validate_allocations
+        from config import ACCOUNT_DESCRIPTIONS
+        
+        allocations = get_user_allocations(user_id)
+        
+        # Check if user has allocations set up
+        if not allocations:
+            return f"⚠️ *Chưa thiết lập phân bổ!*\nDùng `/allocation` để thiết lập phân bổ thu nhập"
+        
+        # Validate allocations
+        if not validate_allocations(allocations):
+            total_pct = sum(allocations.values())
+            return f"⚠️ *Cảnh báo*: Tổng phân bổ = {total_pct}% (không phải 100%)\n*Vui lòng kiểm tra `/allocation`*"
+        
+        # Allocate to accounts
+        allocation_details = []
+        
+        for account_type in ["need", "fun", "saving", "invest"]:
+            percentage = allocations[account_type]
+            if percentage > 0:
+                allocated_amount = amount * (percentage / 100)
+                
+                await _add_to_account(user_id, account_type, allocated_amount, "income_allocation",
+                                     f"{description} ({percentage}%)", income_id)
+                
+                account_info = ACCOUNT_DESCRIPTIONS[account_type]
+                allocation_details.append(f"{account_info['emoji']} *{account_info['name']}* ({percentage}%): {format_currency(allocated_amount)}")
+        
+        return "💰 *PHÂN BỔ TÀI KHOẢN*:\n" + "\n".join(allocation_details)
+
+async def _add_to_account(user_id, account_type, amount, transaction_type, description, reference_id):
+    """Add money to specific account with transaction logging"""
+    
+    # Get current balance
+    account_data = db.get_account_by_type(user_id, account_type)
+    current_balance = 0
+    
+    if account_data.data:
+        current_balance = float(account_data.data[0].get("current_balance", 0))
+    
+    # Update balance
+    new_balance = current_balance + amount
+    
+    account_update = {
+        "user_id": user_id,
+        "account_type": account_type,
+        "current_balance": new_balance,
+        "last_updated": datetime.now().isoformat()
+    }
+    
+    db.upsert_account(account_update)
+    
+    # Log transaction
+    transaction_data = {
+        "user_id": user_id,
+        "account_type": account_type,
+        "transaction_type": transaction_type,
+        "amount": amount,
+        "description": description,
+        "reference_id": reference_id
+    }
+    
+    db.insert_account_transaction(transaction_data)
+    
 def calculate_income_by_type(user_id, month_start):
     """Calculate income by construction vs general - simplified"""
     try:
