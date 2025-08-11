@@ -89,8 +89,79 @@ class DatabaseManager:
         return self.supabase.table("accounts").select("*").eq("user_id", user_id).execute()
     
     def upsert_account(self, account_data):
-        """Insert or update account record"""
-        return self.supabase.table("accounts").upsert(account_data).execute()
+        """Insert or update account record with proper conflict resolution"""
+        try:
+            # Use on_conflict parameter to specify which columns to use for conflict resolution
+            return self.supabase.table("accounts").upsert(
+                account_data, 
+                on_conflict="user_id,account_type"
+            ).execute()
+        except Exception as e:
+            # Fallback: try update first, then insert if update fails
+            user_id = account_data["user_id"]
+            account_type = account_data["account_type"]
+            
+            try:
+                # Try to update existing record
+                result = self.supabase.table("accounts").update({
+                    "current_balance": account_data["current_balance"],
+                    "last_updated": account_data["last_updated"]
+                }).eq("user_id", user_id).eq("account_type", account_type).execute()
+                
+                # If no rows were updated, insert new record
+                if not result.data:
+                    result = self.supabase.table("accounts").insert(account_data).execute()
+                
+                return result
+                
+            except Exception as fallback_error:
+                print(f"Account upsert fallback failed: {fallback_error}")
+                raise fallback_error
+
+
+    def update_account_balance(self, user_id, account_type, amount_change, transaction_type, description, reference_id=None):
+        """Update account balance and log transaction with better error handling"""
+        from datetime import datetime
+        
+        try:
+            # Get current balance
+            account_data = self.get_account_by_type(user_id, account_type)
+            current_balance = 0
+            
+            if account_data.data:
+                current_balance = float(account_data.data[0].get("current_balance", 0))
+            
+            # Calculate new balance
+            new_balance = current_balance + amount_change  # Negative amount_change for expenses
+            
+            # Update account with safer upsert
+            account_update = {
+                "user_id": user_id,
+                "account_type": account_type,
+                "current_balance": new_balance,
+                "last_updated": datetime.now().isoformat()
+            }
+            
+            # Use the improved upsert method
+            result = self.upsert_account(account_update)
+            
+            # Log transaction
+            transaction_data = {
+                "user_id": user_id,
+                "account_type": account_type,
+                "transaction_type": transaction_type,
+                "amount": amount_change,
+                "description": description,
+                "reference_id": reference_id
+            }
+            
+            self.insert_account_transaction(transaction_data)
+            
+            return result, new_balance
+            
+        except Exception as e:
+            print(f"Update account balance error: {e}")
+            raise e
     
     def get_account_by_type(self, user_id, account_type):
         """Get specific account by type"""
