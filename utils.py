@@ -2,6 +2,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from config import ALLOWED_USERS
+from datetime import date, datetime
 
 def is_authorized(user_id: int) -> bool:
     """Check if user is authorized"""
@@ -91,23 +92,88 @@ async def send_long_message(update: Update, message: str, continuation_prefix: s
             continuation = continuation_prefix + chunk
             await send_formatted_message(update, continuation)
 
-def get_month_date_range(year: int, month: int) -> tuple:
-    """Get start and end dates for a month"""
-    from datetime import date
+def get_current_salary_month() -> tuple[int, int]:
+    """Get current salary month and year based on today's date
     
-    month_start = date(year, month, 1)
-    if month == 12:
-        month_end = date(year + 1, 1, 1)
+    Returns:
+        tuple[int, int]: (salary_month, salary_year)
+        
+    Logic:
+        - If today >= 26th: current calendar month is the salary month
+        - If today < 26th: previous calendar month is the salary month
+    """
+    today = datetime.now()
+    
+    if today.day >= 26:
+        # We're in the salary month of current calendar month
+        salary_month = today.month
+        salary_year = today.year
     else:
-        month_end = date(year, month + 1, 1)
+        # We're in the salary month of previous calendar month
+        if today.month == 1:
+            salary_month = 12
+            salary_year = today.year - 1
+        else:
+            salary_month = today.month - 1
+            salary_year = today.year
     
-    return month_start, month_end
+    return salary_month, salary_year
+
+def get_month_date_range(year: int, month: int) -> tuple[date, date]:
+    """Get start and end dates for a salary month (26th to 25th)
+    
+    Args:
+        year: The year of the salary month
+        month: The salary month number (1-12)
+        
+    Returns:
+        tuple: (start_date, end_date) where:
+        - start_date: 26th of previous calendar month
+        - end_date: 25th of current calendar month
+        
+    Example:
+        get_month_date_range(2025, 8) returns (2025-07-26, 2025-08-25)
+    """
+    # Start date: 26th of previous calendar month
+    if month == 1:
+        start_month = 12
+        start_year = year - 1
+    else:
+        start_month = month - 1
+        start_year = year
+    
+    start_date = date(start_year, start_month, 26)
+    
+    # End date: 25th of current calendar month
+    end_date = date(year, month, 25)
+    
+    return start_date, end_date
+
+def get_salary_month_display(year: int, month: int) -> str:
+    """Get display string for salary month range
+    
+    Args:
+        year: The year of the salary month
+        month: The salary month number (1-12)
+        
+    Returns:
+        str: Display string like "26/7-25/8/2025"
+    """
+    start_date, end_date = get_month_date_range(year, month)
+    return f"{start_date.day}/{start_date.month}-{end_date.day}/{end_date.month}/{year}"
 
 def parse_date_argument(date_str: str) -> tuple[bool, int, int, str]:
-    """Parse date argument in format MM/YYYY"""
+    """Parse date argument in format MM/YYYY for salary months
+    
+    Args:
+        date_str: Date string in format MM/YYYY
+        
+    Returns:
+        tuple: (success, month, year, error_message)
+    """
     try:
         if '/' not in date_str:
-            return False, 0, 0, "❌ Format: /summary 8/2025"
+            return False, 0, 0, "❌ Format: /summary 8/2025 (tháng lương 8 = 26/7-25/8/2025)"
         
         month_str, year_str = date_str.split('/')
         month = int(month_str)
@@ -119,4 +185,12 @@ def parse_date_argument(date_str: str) -> tuple[bool, int, int, str]:
         return True, month, year, ""
         
     except ValueError:
-        return False, 0, 0, "❌ Format: /summary 8/2025"
+        return False, 0, 0, "❌ Format: /summary 8/2025 (tháng lương 8 = 26/7-25/8/2025)"
+
+def is_salary_month_start_today() -> bool:
+    """Check if today is the 26th (start of new salary month)
+    
+    Returns:
+        bool: True if today is 26th of any month
+    """
+    return datetime.now().day == 26

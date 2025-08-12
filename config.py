@@ -22,11 +22,12 @@ def get_income_emoji(income_type):
     return INCOME_TYPES.get(income_type, {}).get("emoji", "💰")
 
 # =============================================================================
-# SIMPLE MESSAGE TEMPLATES
+# SIMPLE MESSAGE TEMPLATES WITH SALARY CYCLE SUPPORT
 # =============================================================================
 
 MESSAGE_TEMPLATES = {
-    "list_overview": """📝 *CHI TIÊU THÁNG {month}/{year}*
+    "list_overview": """📝 *CHI TIÊU THÁNG LƯƠNG {month}/{year}*
+📅 *({date_range})*
 
 {categories_content}
 
@@ -42,7 +43,8 @@ MESSAGE_TEMPLATES = {
     "expense_item": """  {date} - {description} - `{amount}`""",
     "more_items": """  _... và {count} giao dịch khác_""",
     
-    "summary_report": """📊 *BÁO CÁO THÁNG {month}/{year}*{subscription_info}
+    "summary_report": """📊 *BÁO CÁO THÁNG LƯƠNG {month}/{year}*
+📅 *({date_range})*{subscription_info}
 
 💵 *Thu nhập:* `{total_income}`
 💰 *Chi tiêu:* `{total_expenses}`
@@ -105,7 +107,7 @@ def format_currency(amount: float) -> str:
     return f"{amount:,.0f}đ"
 
 # =============================================================================
-# BOT MESSAGES - SIMPLIFIED
+# BOT MESSAGES WITH SALARY CYCLE EXPLANATIONS
 # =============================================================================
 
 BOT_MESSAGES = {
@@ -117,11 +119,13 @@ BOT_MESSAGES = {
 
 *⚡ LỆNH NHANH:*
 📊 `/list` - Xem chi tiêu + wishlist analysis
-📈 `/summary` - Báo cáo tháng
+📈 `/summary` - Báo cáo tháng lương
 💵 `/income` - Quản lý thu nhập
 💰 `/budget ăn uống 1.5m` - Đặt budget
 🛍️ `/wishlist` - Xem wishlist (5 levels)
-❓ `/help` - Hướng dẫn""",
+❓ `/help` - Hướng dẫn
+
+📅 *THÁNG LƯƠNG:* 26 đến 25 (VD: T8 = 26/7-25/8)""",
     
     "help": """💡 *HƯỚNG DẪN*
 
@@ -154,11 +158,65 @@ BOT_MESSAGES = {
 
 *🔍 XEM:*
 📊 `/list` → tổng quan + wishlist analysis
-📈 `/summary` → báo cáo tháng
-💎 `/saving` → tiết kiệm""",
+📈 `/summary` → báo cáo tháng lương
+💎 `/saving` → tiết kiệm
+
+*📅 THÁNG LƯƠNG:*
+• Mỗi tháng chạy từ 26 đến 25
+• VD: Tháng 8 = 26/7-25/8
+• `/summary 8/2025` = báo cáo 26/7-25/8/2025
+• Subscriptions tự động thêm ngày 26""",
     
-    # ... rest of BOT_MESSAGES stays the same
+    "income_types": """💵 *LOẠI THU NHẬP*
+
+🏗️ *construction* - Thu nhập xây dựng
+💵 *salary* - Lương tháng  
+🎉 *random* - Thu nhập bổ sung
+
+*💡 CÁCH DÙNG:*
+• `/income salary 3m lương tháng`
+• `/income construction 2m làm nhà`
+• `/income random 500k bán đồ`
+
+📅 *Lưu ý:* Construction không bị phân bổ vào tài khoản khác""",
+    
+    "format_errors": {
+        "income_usage": "❌ Cách dùng: `/income salary 3m [mô tả]`",
+        "invalid_income_type": "❌ Loại thu nhập '{type}' không hợp lệ. Dùng: construction, salary, random",
+        "savings_usage": "❌ Cách dùng: `/editsaving 500k`",
+        "invalid_number": "❌ Số tiền không hợp lệ. {example}"
+    },
+    
+    "no_expenses_this_month": """📝 *CHƯA CÓ CHI TIÊU*
+
+📅 *Tháng lương {month}/{year}*
+
+Chưa có chi tiêu nào trong tháng này.
+Hãy bắt đầu ghi chi tiêu bằng cách nhắn: `50k cà phê`""",
+    
+    "savings_current": """💰 *TIẾT KIỆM HIỆN TẠI*
+
+💎 *Số tiền:* {amount}
+📅 *Cập nhật:* {date}
+
+💡 _Dùng `/editsaving [số mới]` để thay đổi_""",
+    
+    "savings_none": """💰 *CHƯA CÓ TIẾT KIỆM*
+
+Chưa có dữ liệu tiết kiệm.
+Dùng `/editsaving 500k` để bắt đầu ghi nhận tiết kiệm.""",
+    
+    "unknown_message": """❓ *KHÔNG HIỂU TIN NHẮN*
+
+💡 *THỬ:*
+• `50k cà phê` → ghi chi tiêu
+• `/help` → xem hướng dẫn
+• `/list` → xem tổng quan
+
+📅 *Tháng lương:* 26-25 (VD: T8 = 26/7-25/8)"""
 }
+
+# ... rest of the file remains the same ...
 
 # =============================================================================
 # CATEGORIES - SIMPLIFIED
@@ -305,7 +363,7 @@ def get_template(key, **kwargs):
     return template
 
 # =============================================================================
-# STARTUP AND ERROR MESSAGES
+# STARTUP AND ERROR MESSAGES WITH SALARY CYCLE INFO
 # =============================================================================
 
 STARTUP_MESSAGES = {
@@ -313,10 +371,11 @@ STARTUP_MESSAGES = {
     "categories": "📂 Categories: {categories}",
     "notation": "💰 K/M/TR notation: 50k=50,000đ, 1.5m=1,500,000đ, 3tr=3,000,000đ",
     "wishlist": "📝 Wishlist with 5 levels: 1=Untouchable, 2=Next Sale, 3=Want Soon, 4=Want Eventually, 5=Nice to Have",
-    "subscriptions": "📅 Subscription feature: auto-added when calculating summary",
+    "subscriptions": "📅 Subscription feature: auto-added on 26th of each month (salary cycle)",
     "budget": "💰 Budget planning: set spending limits per category",
-    "summary": "📊 Summary with date: /summary or /summary 8/2025",
-    "list_feature": "📝 Enhanced /list command: shows wishlist analysis"
+    "salary_cycle": "📅 Salary cycle: Each month runs 26th-25th (Month 8 = July 26 - Aug 25)",
+    "summary": "📊 Summary with salary months: /summary or /summary 8/2025 (26/7-25/8/2025)",
+    "list_feature": "📝 Enhanced /list command: shows wishlist analysis for salary month"
 }
 
 ERROR_MESSAGES = {

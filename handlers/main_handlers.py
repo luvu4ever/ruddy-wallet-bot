@@ -9,7 +9,8 @@ from database import db
 from ai_parser import parse_message_with_gemini, generate_monthly_summary
 from utils import (
     check_authorization, send_formatted_message, send_long_message,
-    parse_amount, safe_parse_amount, parse_date_argument, get_month_date_range
+    parse_amount, safe_parse_amount, parse_date_argument, get_month_date_range,
+    get_current_salary_month, get_salary_month_display  # NEW: salary cycle functions
 )
 from config import (
     EXPENSE_CATEGORIES, get_category_emoji, get_all_category_info, 
@@ -201,16 +202,18 @@ async def category_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 {category_info}
 
 *💡 CÁCH DÙNG:*
-• `/category ăn uống` - Chi tiêu ăn uống tháng này + budget
-• `/category mèo 8/2025` - Chi tiêu mèo tháng 8/2025
-• `/category công trình` - Chi tiêu công trình tháng này"""
+• `/category ăn uống` - Chi tiêu ăn uống tháng lương này + budget
+• `/category mèo 8/2025` - Chi tiêu mèo tháng lương 8/2025 (26/7-25/8/2025)
+• `/category công trình` - Chi tiêu công trình tháng lương này
+
+📅 *Tháng lương:* 26-25 (VD: T8 = 26/7-25/8)"""
         await send_formatted_message(update, message)
         return
     
     # Parse arguments - category name and optional date
     category_input = None
-    target_month = datetime.now().month
-    target_year = datetime.now().year
+    # Use current salary month as default
+    target_month, target_year = get_current_salary_month()
     
     # Check if any argument looks like a date (contains "/")
     date_arg = None
@@ -250,21 +253,23 @@ async def category_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 *💡 VÍ DỤ:*
 • `/category ăn uống`
 • `/category mèo`
-• `/category công trình 8/2025`"""
+• `/category công trình 8/2025` (tháng lương 8 = 26/7-25/8/2025)"""
         await send_formatted_message(update, message)
         return
     
-    # Get expenses for this category and month
+    # Get expenses for this category and salary month
     month_start, month_end = get_month_date_range(target_year, target_month)
     expenses = db.get_expenses_by_category(user_id, matched_category, month_start)
     
     if not expenses.data:
         category_emoji = get_category_emoji(matched_category)
+        date_range = get_salary_month_display(target_year, target_month)
         message = f"""📂 *KHÔNG CÓ CHI TIÊU*
 
-{category_emoji} *{matched_category.upper()} - {target_month}/{target_year}*
+{category_emoji} *{matched_category.upper()} - THÁNG LƯƠNG {target_month}/{target_year}*
+📅 *({date_range})*
 
-Không có chi tiêu nào cho danh mục này trong tháng {target_month}/{target_year}
+Không có chi tiêu nào cho danh mục này trong tháng lương {target_month}/{target_year}
 
 💡 _Thử danh mục khác hoặc tháng khác_"""
         await send_formatted_message(update, message)
@@ -287,14 +292,14 @@ Không có chi tiêu nào cho danh mục này trong tháng {target_month}/{targe
         
         if remaining >= 0:
             budget_section = f"""
-💰 *BUDGET THÁNG {target_month}/{target_year}:*
+💰 *BUDGET THÁNG LƯƠNG {target_month}/{target_year}:*
 💰 Ngân sách: `{format_currency(budget_amount)}`
 💸 Đã chi: `{format_currency(spent_amount)}`
 ✅ Còn lại: `{format_currency(remaining)}`
 📊 Đã dùng: {(spent_amount/budget_amount*100):.1f}%"""
         else:
             budget_section = f"""
-💰 *BUDGET THÁNG {target_month}/{target_year}:*
+💰 *BUDGET THÁNG LƯƠNG {target_month}/{target_year}:*
 💰 Ngân sách: `{format_currency(budget_amount)}`
 💸 Đã chi: `{format_currency(spent_amount)}`
 ⚠️ Vượt budget: `{format_currency(abs(remaining))}`
@@ -309,10 +314,12 @@ Không có chi tiêu nào cho danh mục này trong tháng {target_month}/{targe
     expense_lines = [format_expense_item(expense) for expense in sorted_expenses]
     
     category_emoji = get_category_emoji(matched_category)
+    date_range = get_salary_month_display(target_year, target_month)
     
     message = f"""{category_emoji} *TẤT CẢ CHI TIÊU {matched_category.upper()}*
 
-📊 *Tháng {target_month}/{target_year}*
+📊 *Tháng lương {target_month}/{target_year}*
+📅 *({date_range})*
 
 {chr(10).join(expense_lines)}{budget_section}
 
@@ -343,17 +350,15 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await send_formatted_message(update, error_msg)
             return
     else:
-        # Use current month
-        today = datetime.now()
-        target_month = today.month
-        target_year = today.year
+        # Use current salary month
+        target_month, target_year = get_current_salary_month()
     
-    # Get data for the target month
+    # Get data for the target salary month
     month_start, month_end = get_month_date_range(target_year, target_month)
     expenses = db.get_monthly_expenses(user_id, month_start)
     income = db.get_monthly_income(user_id, month_start)
     
-    # Auto-add subscriptions
+    # Auto-add subscriptions on 26th
     subscription_expenses = await _add_monthly_subscriptions(user_id, target_year, target_month, month_start, expenses)
     if subscription_expenses:
         expenses = db.get_monthly_expenses(user_id, month_start)
@@ -432,10 +437,14 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 budget_info += f"\n🔴 *Vượt Budget+Level1+2:* `{format_currency(abs(money_after_all))}`"
     
+    # Get salary month display range
+    date_range = get_salary_month_display(target_year, target_month)
+    
     # Create summary using template
     message = get_template("summary_report",
         month=target_month,
         year=target_year,
+        date_range=date_range,
         subscription_info=subscription_info,
         total_income=format_currency(total_income),
         total_expenses=format_currency(total_expenses),
@@ -466,13 +475,21 @@ async def list_expenses_command(update: Update, context: ContextTypes.DEFAULT_TY
 # Helper functions
 async def _show_all_categories_expenses(update: Update, user_id: int):
     """Show all categories with top 8 items each + budget info + wishlist analysis + account info"""
-    today = datetime.now()
-    month_start = today.replace(day=1).date()
+    # Use current salary month instead of calendar month
+    target_month, target_year = get_current_salary_month()
+    month_start, month_end = get_month_date_range(target_year, target_month)
     
     expenses = db.get_monthly_expenses(user_id, month_start)
     
     if not expenses.data:
-        message = get_message("no_expenses_this_month", month=today.month, year=today.year)
+        date_range = get_salary_month_display(target_year, target_month)
+        message = f"""📝 *CHƯA CÓ CHI TIÊU*
+
+📅 *Tháng lương {target_month}/{target_year}*
+📅 *({date_range})*
+
+Chưa có chi tiêu nào trong tháng lương này.
+Hãy bắt đầu ghi chi tiêu bằng cách nhắn: `50k cà phê`"""
         await send_formatted_message(update, message)
         return
     
@@ -606,9 +623,13 @@ async def _show_all_categories_expenses(update: Update, user_id: int):
     # Create message - combine wishlist section and account section
     full_analysis_section = wishlist_section + account_section
     
+    # Get salary month display range
+    date_range = get_salary_month_display(target_year, target_month)
+    
     message = get_template("list_overview",
-        month=today.month,
-        year=today.year,
+        month=target_month,
+        year=target_year,
+        date_range=date_range,
         categories_content="\n\n".join(categories_content),
         total=format_currency(total_month),
         construction_income=format_currency(income_breakdown["construction"]),
@@ -705,28 +726,31 @@ def _find_matching_category(category_input: str) -> str:
     return None
 
 async def _add_monthly_subscriptions(user_id, target_year, target_month, month_start, expenses):
-    """Add monthly subscriptions to expenses if not already added"""
+    """Add monthly subscriptions to expenses if not already added - now uses 26th timing"""
+    from utils import is_salary_month_start_today
+    
     subscriptions = db.get_subscriptions(user_id)
     subscription_expenses = []
     
     if subscriptions.data:
         for subscription in subscriptions.data:
-            # Check if subscription expense already exists for this month
+            # Check if subscription expense already exists for this salary month
             existing_sub_expense = None
             for expense in expenses.data:
                 if (expense["description"] == f"{subscription['service_name']} (subscription)" and
-                    expense["date"][:7] == f"{target_year}-{target_month:02d}"):
+                    expense["date"] >= month_start.isoformat() and
+                    expense["date"] <= f"{target_year}-{target_month:02d}-25"):
                     existing_sub_expense = expense
                     break
             
-            # If not exists, add it
+            # If not exists, add it (using month_start which is the 26th)
             if not existing_sub_expense:
                 subscription_expense = {
                     "user_id": user_id,
                     "amount": subscription["amount"],
                     "description": f"{subscription['service_name']} (subscription)",
                     "category": DEFAULT_SUBSCRIPTION_CATEGORY,
-                    "date": month_start.isoformat()
+                    "date": month_start.isoformat()  # This is the 26th of previous calendar month
                 }
                 
                 db.insert_expense(subscription_expense)
