@@ -41,11 +41,16 @@ from .account_handlers import (
     account_edit_command
 )
 
-# NEW: Add allocation handlers
 from .allocation_handlers import (
     allocation_command,
     get_user_allocations,
     validate_allocations
+)
+
+# NEW: Add month-end handlers
+from .month_end_handlers import (
+    endmonth_command,
+    monthhistory_command
 )
 
 __all__ = [
@@ -89,5 +94,9 @@ __all__ = [
     # Allocation handlers
     "allocation_command",
     "get_user_allocations",
-    "validate_allocations"
+    "validate_allocations",
+    
+    # Month-end handlers
+    "endmonth_command",
+    "monthhistory_command"
 ]

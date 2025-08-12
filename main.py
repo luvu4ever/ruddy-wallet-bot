@@ -10,7 +10,8 @@ from handlers import (
     subscription_add_command, subscription_list_command, subscription_remove_command,
     budget_command, budget_list_command, income_command,
     account_command, account_edit_command,
-    allocation_command
+    allocation_command,
+    endmonth_command, monthhistory_command  # NEW: Month-end handlers
 )
 
 import time
@@ -54,6 +55,10 @@ def main():
         
         # Allocation
         application.add_handler(CommandHandler("allocation", allocation_command))
+        
+        # NEW: Month-end processing
+        application.add_handler(CommandHandler("endmonth", endmonth_command))
+        application.add_handler(CommandHandler("monthhistory", monthhistory_command))
         
         # Message handler (must be last)
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))

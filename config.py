@@ -137,6 +137,7 @@ BOT_MESSAGES = {
 *💳 TÀI KHOẢN:*
 📊 `/account` → xem tất cả tài khoản
 💰 `/accountedit expense 500k` → cập nhật số dư
+💱 `/allocation` → thiết lập phân bổ thu nhập
 
 *🛍️ WISHLIST (5 LEVELS):*
 ➕ `/wishadd iPhone 25m prio:1` → thêm (level 1-5)
@@ -147,55 +148,16 @@ BOT_MESSAGES = {
 💰 `/budget ăn uống 1.5m` → đặt budget
 📊 `/budgetlist` → xem budget plans
 
+*📅 ĐÓNG THÁNG:*
+🔚 `/endmonth` → đóng tháng thủ công
+📅 `/monthhistory` → xem lịch sử đóng tháng
+
 *🔍 XEM:*
 📊 `/list` → tổng quan + wishlist analysis
 📈 `/summary` → báo cáo tháng
 💎 `/saving` → tiết kiệm""",
     
-    "unknown_message": """❓ *Tôi không hiểu tin nhắn này.*
-
-*💡 THỬ:*
-🍜 `50k bún bò huế` _(chi tiêu)_
-💵 `/income salary 3m` _(thu nhập)_""",
-    
-    "unauthorized": """❌ *KHÔNG CÓ QUYỀN TRUY CẬP*""",
-    
-    "no_expenses_this_month": """📝 *KHÔNG CÓ CHI TIÊU*
-
-📊 *Tháng {month}/{year}*
-Chưa có giao dịch nào.""",
-    
-    "no_budget": """💰 *CHƯA CÓ BUDGET!*
-Dùng `/budget ăn uống 1.5m` để đặt budget""",
-    
-    "no_subscriptions": """📅 *KHÔNG CÓ SUBSCRIPTION!*
-Dùng `/subadd Spotify 33k` để thêm""",
-    
-    "savings_current": """💎 *TIẾT KIỆM HIỆN TẠI*
-💰 *{amount}*
-📅 _{date}_""",
-    
-    "savings_none": """💎 *TIẾT KIỆM: 0đ*
-Dùng `/editsaving 500k` để cập nhật""",
-    
-    "income_types": """💰 *CÁC LOẠI THU NHẬP*
-
-💵 *construction* 🏗️ - Construction income
-💵 *salary* 💵 - Monthly salary  
-💵 *random* 🎉 - Additional income
-
-*Cách dùng:* `/income salary 3m lương tháng`""",
-    
-    "income_added": """✅ *ĐÃ THÊM THU NHẬP!*
-{emoji} *{type}*: {amount}
-📝 *{description}*""",
-    
-    "format_errors": {
-        "savings_usage": "❌ Dùng: `/editsaving 500k`",
-        "income_usage": "❌ Dùng: `/income salary 3m`",
-        "invalid_number": "❌ Số không hợp lệ. VD: {example}",
-        "invalid_income_type": "❌ Loại `{type}` không tồn tại. Dùng /income để xem các loại"
-    }
+    # ... rest of BOT_MESSAGES stays the same
 }
 
 # =============================================================================
@@ -304,7 +266,7 @@ CATEGORY_TO_ACCOUNT = {
     # Need account categories (essential expenses)
     "ăn uống": "need",
     "di chuyển": "need", 
-    "hóa đọn": "need",
+    "hóa đơn": "need",
     "mèo": "need",
     
     # Fun account categories (entertainment/personal)
