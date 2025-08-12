@@ -2,16 +2,16 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from telegram.error import Conflict
 from config import TELEGRAM_BOT_TOKEN
 
-# Import all handlers
+# Import all handlers - REMOVED category_command
 from handlers import (
     start, handle_message, savings_command, edit_savings_command,
-    category_command, help_command, monthly_summary, list_expenses_command,
+    help_command, monthly_summary, list_expenses_command,
     wishlist_add_command, wishlist_view_command, wishlist_remove_command,
     subscription_add_command, subscription_list_command, subscription_remove_command,
     budget_command, budget_list_command, income_command,
     account_command, account_edit_command,
     allocation_command,
-    endmonth_command, monthhistory_command  # NEW: Month-end handlers
+    endmonth_command, monthhistory_command  # Month-end handlers
 )
 
 import time
@@ -28,11 +28,11 @@ def main():
         application.add_handler(CommandHandler("help", help_command))
         
         # Expense & Income
-        application.add_handler(CommandHandler("list", list_expenses_command))
+        application.add_handler(CommandHandler("list", list_expenses_command))  # Enhanced list command
         application.add_handler(CommandHandler("summary", monthly_summary))
         application.add_handler(CommandHandler("saving", savings_command))
         application.add_handler(CommandHandler("editsaving", edit_savings_command))
-        application.add_handler(CommandHandler("category", category_command))
+        # REMOVED: category_command - functionality moved to list_expenses_command
         application.add_handler(CommandHandler("income", income_command))
         
         # Wishlist (5 levels)
@@ -56,7 +56,7 @@ def main():
         # Allocation
         application.add_handler(CommandHandler("allocation", allocation_command))
         
-        # NEW: Month-end processing
+        # Month-end processing
         application.add_handler(CommandHandler("endmonth", endmonth_command))
         application.add_handler(CommandHandler("monthhistory", monthhistory_command))
         
@@ -65,6 +65,7 @@ def main():
         
         # Simple startup message
         print("🤖 Starting Personal Finance Bot...")
+        print("🔄 Enhanced /list command with date support enabled!")
         print("🚀 Bot is running!")
         
         application.run_polling()

@@ -1,11 +1,15 @@
+# Main handlers (cleaned up - without list functionality)
 from .main_handlers import (
     start,
     handle_message,
     savings_command,
     edit_savings_command,
-    category_command,
     help_command,
-    monthly_summary,
+    monthly_summary
+)
+
+# NEW: Dedicated list handlers module
+from .list_handlers import (
     list_expenses_command
 )
 
@@ -47,21 +51,22 @@ from .allocation_handlers import (
     validate_allocations
 )
 
-# NEW: Add month-end handlers
+# Month-end handlers
 from .month_end_handlers import (
     endmonth_command,
     monthhistory_command
 )
 
 __all__ = [
-    # Main handlers
+    # Main handlers (cleaned)
     "start",
-    "handle_message",
+    "handle_message", 
     "savings_command",
     "edit_savings_command",
-    "category_command",
     "help_command",
     "monthly_summary",
+    
+    # List handlers (NEW MODULE)
     "list_expenses_command",
     
     # Wishlist handlers
