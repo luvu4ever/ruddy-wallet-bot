@@ -18,8 +18,8 @@ from config import (
 
 async def list_expenses_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Enhanced /list command with multiple modes:
-    - /list - Overview of all categories (current)
-    - /list [category] - All expenses for specific category this salary month
+    - /list - Overview of all categories
+    - /list [category] - Category details for this salary month
     - /list dd/mm/yyyy - All expenses for specific date
     - /list [category] dd/mm/yyyy - Category expenses for specific date
     """
@@ -117,20 +117,13 @@ def _parse_list_arguments(args):
         matched_category = _find_matching_category(category_text)
         
         if not matched_category:
-            available_categories = ", ".join(EXPENSE_CATEGORIES)
             return {
                 "mode": "invalid",
-                "error_message": f"""❌ *KHÔNG TÌM THẤY DANH MỤC*
+                "error_message": f"""❌ Không tìm thấy danh mục: `{category_text}`
 
-🔍 *Tìm kiếm:* `{category_text}`
+📂 Có sẵn: {", ".join(EXPENSE_CATEGORIES[:6])}...
 
-*📂 CÁC DANH MỤC CÓ SẴN:*
-{available_categories}
-
-*💡 VÍ DỤ:*
-• `/list ăn uống` - Chi tiêu ăn uống tháng lương này
-• `/list mèo 15/08/2025` - Chi tiêu mèo ngày 15/08/2025
-• `/list 20/08/2025` - Tất cả chi tiêu ngày 20/08/2025"""
+VD: `/list ăn uống`, `/list 15/08/2025`"""
             }
     
     # Determine mode based on what we found
@@ -157,25 +150,14 @@ def _parse_list_arguments(args):
     else:
         return {
             "mode": "invalid",
-            "error_message": f"""❌ *KHÔNG HIỂU LỆNH*
-
-*💡 CÁCH DÙNG `/list`:*
-• `/list` - Tổng quan tất cả danh mục
-• `/list ăn uống` - Chi tiêu ăn uống tháng lương này
-• `/list 15/08/2025` - Tất cả chi tiêu ngày 15/08/2025
-• `/list mèo 20/8/25` - Chi tiêu mèo ngày 20/08/2025
-
-*📅 ĐỊNH DẠNG NGÀY HỖ TRỢ:*
-• `dd/mm/yyyy` - 15/08/2025
-• `dd/mm/yy` - 15/08/25  
-• `dd-mm-yyyy` - 15-08-2025
-• `dd.mm.yyyy` - 15.08.2025
-
-*📂 DANH MỤC:* {", ".join(EXPENSE_CATEGORIES[:5])}..."""
+            "error_message": f"""❌ Cách dùng:
+• `/list` - Tổng quan
+• `/list ăn uống` - Chi tiết danh mục  
+• `/list 15/08/2025` - Chi tiêu ngày"""
         }
 
 async def _show_category_expenses_for_salary_month(update: Update, user_id: int, category: str, target_month: int, target_year: int):
-    """Show all expenses for specific category in salary month (enhanced category command)"""
+    """Show all expenses for specific category in salary month"""
     
     # Get expenses for this category and salary month
     month_start, month_end = get_month_date_range(target_year, target_month)
@@ -184,86 +166,50 @@ async def _show_category_expenses_for_salary_month(update: Update, user_id: int,
     if not expenses.data:
         category_emoji = get_category_emoji(category)
         date_range = get_salary_month_display(target_year, target_month)
-        message = f"""📂 *KHÔNG CÓ CHI TIÊU*
+        message = f"""📂 {category_emoji} *{category.upper()}*
 
-{category_emoji} *{category.upper()} - THÁNG LƯƠNG {target_month}/{target_year}*
-📅 *({date_range})*
+📅 Tháng lương {target_month}/{target_year} ({date_range})
 
-Không có chi tiêu nào cho danh mục này trong tháng lương {target_month}/{target_year}
-
-💡 _Thử danh mục khác: `/list ăn uống`_
-💡 _Xem tổng quan: `/list`_"""
+Không có chi tiêu nào."""
         await send_formatted_message(update, message)
         return
     
-    # Get budget information
+    # Get budget and account info
     from .budget_handlers import calculate_remaining_budget
     remaining_budget = calculate_remaining_budget(user_id, month_start)
     
-    # Get account information for this category
-    from config import get_account_for_category, get_account_emoji_enhanced, get_account_name_enhanced
+    from config import get_account_for_category
     account_type = get_account_for_category(category)
     account_balance = db.get_account_balance(user_id, account_type)
-    account_emoji = get_account_emoji_enhanced(account_type)
-    account_name = get_account_name_enhanced(account_type)
     
-    # Calculate total spent in this category
+    # Calculate total spent
     total_spent = sum(float(expense["amount"]) for expense in expenses.data)
     
-    # Format budget info
-    budget_section = ""
+    # Budget status (concise)
+    budget_info = ""
     if category in remaining_budget:
         budget_data = remaining_budget[category]
-        budget_amount = budget_data["budget"]
-        spent_amount = budget_data["spent"]
         remaining = budget_data["remaining"]
-        
         if remaining >= 0:
-            budget_section = f"""
-💰 *BUDGET THÁNG LƯƠNG {target_month}/{target_year}:*
-💰 Ngân sách: `{format_currency(budget_amount)}`
-💸 Đã chi: `{format_currency(spent_amount)}`
-✅ Còn lại: `{format_currency(remaining)}`
-📊 Đã dùng: {(spent_amount/budget_amount*100):.1f}%"""
+            budget_info = f"\n💰 Budget còn: `{format_currency(remaining)}`"
         else:
-            budget_section = f"""
-💰 *BUDGET THÁNG LƯƠNG {target_month}/{target_year}:*
-💰 Ngân sách: `{format_currency(budget_amount)}`
-💸 Đã chi: `{format_currency(spent_amount)}`
-⚠️ Vượt budget: `{format_currency(abs(remaining))}`
-📊 Vượt: {(spent_amount/budget_amount*100):.1f}%"""
-    else:
-        budget_section = f"""
-💡 *CHƯA CÓ BUDGET*
-Đặt budget cho danh mục này: `/budget {category} [số tiền]`"""
+            budget_info = f"\n⚠️ Vượt budget: `{format_currency(abs(remaining))}`"
     
-    # Add account info section
-    account_section = f"""
-💳 *TÀI KHOẢN LIÊN KẾT:*
-{account_emoji} *{account_name}*: `{format_currency(account_balance)}`"""
-    
-    # Sort expenses by date (newest first) and format all
+    # Sort expenses by date (newest first)
     sorted_expenses = sorted(expenses.data, key=lambda x: x["date"], reverse=True)
-    expense_lines = []
-    
-    for expense in sorted_expenses:
-        expense_lines.append(format_expense_item(expense))
+    expense_lines = [format_expense_item(expense) for expense in sorted_expenses]
     
     category_emoji = get_category_emoji(category)
     date_range = get_salary_month_display(target_year, target_month)
     
-    message = f"""{category_emoji} *TẤT CẢ CHI TIÊU {category.upper()}*
+    message = f"""{category_emoji} *{category.upper()}*
 
-📊 *Tháng lương {target_month}/{target_year}*
-📅 *({date_range})*{account_section}{budget_section}
+📅 {date_range}
+💳 Tài khoản: `{format_currency(account_balance)}`{budget_info}
 
-📝 *TẤT CẢ GIAO DỊCH:*
 {chr(10).join(expense_lines)}
 
-💰 *Tổng chi tiêu:* `{format_currency(total_spent)}`
-📊 *Số giao dịch:* {len(sorted_expenses)} lần
-
-💡 *Xem tổng quan:* `/list`"""
+💰 Tổng: `{format_currency(total_spent)}` ({len(sorted_expenses)} giao dịch)"""
     
     await send_long_message(update, message)
 
@@ -273,25 +219,18 @@ async def _show_all_expenses_for_date(update: Update, user_id: int, target_date:
     # Get all expenses for the target date
     expenses_data = db.supabase.table("expenses").select("*").eq("user_id", user_id).eq("date", target_date.isoformat()).execute()
     
+    formatted_date = target_date.strftime("%d/%m/%Y")
+    weekday = target_date.strftime("%A")
+    vietnamese_weekdays = {
+        "Monday": "T2", "Tuesday": "T3", "Wednesday": "T4", 
+        "Thursday": "T5", "Friday": "T6", "Saturday": "T7", "Sunday": "CN"
+    }
+    vn_weekday = vietnamese_weekdays.get(weekday, weekday)
+    
     if not expenses_data.data:
-        formatted_date = target_date.strftime("%d/%m/%Y")
-        weekday = target_date.strftime("%A")
-        vietnamese_weekdays = {
-            "Monday": "Thứ Hai", "Tuesday": "Thứ Ba", "Wednesday": "Thứ Tư", 
-            "Thursday": "Thứ Năm", "Friday": "Thứ Sáu", "Saturday": "Thứ Bảy", "Sunday": "Chủ Nhật"
-        }
-        vn_weekday = vietnamese_weekdays.get(weekday, weekday)
-        
-        message = f"""📅 *KHÔNG CÓ CHI TIÊU*
+        message = f"""📅 *{formatted_date} ({vn_weekday})*
 
-📅 *{formatted_date} ({vn_weekday})*
-
-Không có chi tiêu nào trong ngày này.
-
-💡 *Thử lệnh khác:*
-• `/list` - Tổng quan tháng lương này
-• `/list ăn uống` - Chi tiêu ăn uống
-• `/list {(target_date.day+1):02d}/{target_date.month:02d}/{target_date.year}` - Ngày khác"""
+Không có chi tiêu nào."""
         await send_formatted_message(update, message)
         return
     
@@ -306,16 +245,7 @@ Không có chi tiêu nào trong ngày này.
         total_day += amount
     
     # Build message
-    formatted_date = target_date.strftime("%d/%m/%Y")
-    weekday = target_date.strftime("%A")
-    vietnamese_weekdays = {
-        "Monday": "Thứ Hai", "Tuesday": "Thứ Ba", "Wednesday": "Thứ Tư", 
-        "Thursday": "Thứ Năm", "Friday": "Thứ Sáu", "Saturday": "Thứ Bảy", "Sunday": "Chủ Nhật"
-    }
-    vn_weekday = vietnamese_weekdays.get(weekday, weekday)
-    
-    message = f"""📅 *CHI TIÊU NGÀY {formatted_date}*
-📅 *({vn_weekday})*
+    message = f"""📅 *{formatted_date} ({vn_weekday})*
 
 """
     
@@ -327,19 +257,17 @@ Không có chi tiêu nào trong ngày này.
     for category, category_total in sorted_categories:
         category_emoji = get_category_emoji(category)
         
-        message += f"{category_emoji} *{category.upper()}* - `{format_currency(category_total)}`\n"
+        message += f"{category_emoji} *{category}* `{format_currency(category_total)}`\n"
         
-        # Show all items for this category on this date
+        # Show items for this category
         items = sorted(expenses_by_category[category], key=lambda x: x["id"])
         for item in items:
             description = item["description"]
             amount = float(item["amount"])
-            message += f"  • {description} - `{format_currency(amount)}`\n"
+            message += f"• {description} `{format_currency(amount)}`\n"
         message += "\n"
     
-    message += f"💰 *TỔNG CHI TIÊU NGÀY:* `{format_currency(total_day)}`\n"
-    message += f"📊 *SỐ GIAO DỊCH:* {len(expenses_data.data)} lần\n\n"
-    message += f"💡 *Xem chi tiết danh mục:* `/list [danh mục] {formatted_date}`"
+    message += f"💰 Tổng: `{format_currency(total_day)}` ({len(expenses_data.data)} giao dịch)"
     
     await send_formatted_message(update, message)
 
@@ -352,24 +280,18 @@ async def _show_category_expenses_for_date(update: Update, user_id: int, categor
     formatted_date = target_date.strftime("%d/%m/%Y")
     weekday = target_date.strftime("%A") 
     vietnamese_weekdays = {
-        "Monday": "Thứ Hai", "Tuesday": "Thứ Ba", "Wednesday": "Thứ Tư", 
-        "Thursday": "Thứ Năm", "Friday": "Thứ Sáu", "Saturday": "Thứ Bảy", "Sunday": "Chủ Nhật"
+        "Monday": "T2", "Tuesday": "T3", "Wednesday": "T4", 
+        "Thursday": "T5", "Friday": "T6", "Saturday": "T7", "Sunday": "CN"
     }
     vn_weekday = vietnamese_weekdays.get(weekday, weekday)
+    category_emoji = get_category_emoji(category)
     
     if not expenses_data.data:
-        category_emoji = get_category_emoji(category)
-        message = f"""📅 *KHÔNG CÓ CHI TIÊU*
+        message = f"""{category_emoji} *{category.upper()}*
 
-{category_emoji} *{category.upper()} - {formatted_date}*
-📅 *({vn_weekday})*
+📅 {formatted_date} ({vn_weekday})
 
-Không có chi tiêu nào cho danh mục này trong ngày {formatted_date}
-
-💡 *Thử lệnh khác:*
-• `/list {formatted_date}` - Tất cả chi tiêu ngày {formatted_date}
-• `/list {category}` - Chi tiêu {category} tháng lương này
-• `/list` - Tổng quan tháng lương"""
+Không có chi tiêu nào."""
         await send_formatted_message(update, message)
         return
     
@@ -377,43 +299,23 @@ Không có chi tiêu nào cho danh mục này trong ngày {formatted_date}
     total_spent = sum(float(expense["amount"]) for expense in expenses_data.data)
     sorted_expenses = sorted(expenses_data.data, key=lambda x: x["id"])
     
-    # Get account info for this category
-    from config import get_account_for_category, get_account_emoji_enhanced, get_account_name_enhanced
-    account_type = get_account_for_category(category)
-    account_balance = db.get_account_balance(user_id, account_type)
-    account_emoji = get_account_emoji_enhanced(account_type)
-    account_name = get_account_name_enhanced(account_type)
-    
-    category_emoji = get_category_emoji(category)
-    
-    message = f"""{category_emoji} *CHI TIÊU {category.upper()}*
+    message = f"""{category_emoji} *{category.upper()}*
 
-📅 *{formatted_date} ({vn_weekday})*
+📅 {formatted_date} ({vn_weekday})
 
-💳 *Tài khoản liên kết:*
-{account_emoji} *{account_name}*: `{format_currency(account_balance)}`
-
-📝 *CHI TIẾT GIAO DỊCH:*
 """
     
     for expense in sorted_expenses:
         description = expense["description"]
         amount = float(expense["amount"])
-        message += f"• *{description}*: `{format_currency(amount)}`\n"
+        message += f"• {description} `{format_currency(amount)}`\n"
     
-    message += f"""
-💰 *Tổng chi tiêu:* `{format_currency(total_spent)}`
-📊 *Số giao dịch:* {len(sorted_expenses)} lần
-
-💡 *Xem thêm:*
-• `/list {formatted_date}` - Tất cả danh mục ngày {formatted_date}
-• `/list {category}` - Chi tiêu {category} tháng lương này"""
+    message += f"\n💰 Tổng: `{format_currency(total_spent)}` ({len(sorted_expenses)} giao dịch)"
     
     await send_formatted_message(update, message)
 
 async def _show_all_categories_expenses(update: Update, user_id: int):
-    """Original function - show all categories with top 8 items each + budget info + wishlist analysis + account info"""
-    # Use current salary month instead of calendar month
+    """Show overview - MUCH more concise"""
     target_month, target_year = get_current_salary_month()
     month_start, month_end = get_month_date_range(target_year, target_month)
     
@@ -421,44 +323,36 @@ async def _show_all_categories_expenses(update: Update, user_id: int):
     
     if not expenses.data:
         date_range = get_salary_month_display(target_year, target_month)
-        message = f"""📝 *CHƯA CÓ CHI TIÊU*
+        message = f"""📝 Tháng lương {target_month}/{target_year}
+📅 {date_range}
 
-📅 *Tháng lương {target_month}/{target_year}*
-📅 *({date_range})*
-
-Chưa có chi tiêu nào trong tháng lương này.
-Hãy bắt đầu ghi chi tiêu bằng cách nhắn: `50k cà phê`
-
-💡 *Lệnh /list nâng cao:*
-• `/list ăn uống` - Xem chi tiêu ăn uống
-• `/list 15/08/2025` - Xem chi tiêu ngày 15/08/2025"""
+Chưa có chi tiêu nào."""
         await send_formatted_message(update, message)
         return
     
-    # Import required functions
+    # Get required data
     from .budget_handlers import calculate_remaining_budget, get_total_budget
     from .wishlist_handlers import get_wishlist_priority_sums
     from .income_handlers import calculate_income_by_type, calculate_expenses_by_income_type
     
-    # Calculate data
     remaining_budget = calculate_remaining_budget(user_id, month_start)
     wishlist_sums = get_wishlist_priority_sums(user_id)
     income_breakdown = calculate_income_by_type(user_id, month_start)
     expense_breakdown = calculate_expenses_by_income_type(user_id, month_start)
+    total_budget = get_total_budget(user_id)
     
-    # Get account balances - make sure accounts exist first
+    # Get account balances
     account_balances = {}
     all_account_types = ["need", "fun", "construction", "saving", "invest"]
     
-    # Initialize accounts if they don't exist
     accounts_data = db.get_accounts(user_id)
     if not accounts_data.data:
         await _initialize_all_accounts(user_id)
     
-    # Get current balances
     for account_type in all_account_types:
         account_balances[account_type] = db.get_account_balance(user_id, account_type)
 
+    # Group expenses by category
     expenses_by_category = defaultdict(list)
     total_month = 0
     
@@ -468,7 +362,7 @@ Hãy bắt đầu ghi chi tiêu bằng cách nhắn: `50k cà phê`
         expenses_by_category[category].append(expense)
         total_month += amount
     
-    # Build categories content
+    # Build categories content - MUCH shorter
     categories_content = []
     category_totals = {cat: sum(float(exp["amount"]) for exp in items) 
                       for cat, items in expenses_by_category.items()}
@@ -477,192 +371,90 @@ Hãy bắt đầu ghi chi tiêu bằng cách nhắn: `50k cà phê`
     
     for category, category_total in sorted_categories:
         category_emoji = get_category_emoji(category)
-        budget_info = format_budget_info(remaining_budget, category)
         
-        # Add account info for this category
-        from config import get_account_for_category, get_account_emoji_enhanced, get_account_name_enhanced
-        account_type = get_account_for_category(category)
-        account_balance = account_balances.get(account_type, 0)
-        account_emoji = get_account_emoji_enhanced(account_type)
-        account_name = get_account_name_enhanced(account_type)
+        # Show only top 3 items + count
+        items = sorted(expenses_by_category[category], key=lambda x: x["date"], reverse=True)[:3]
+        expense_items = [f"  {format_expense_item(item)}" for item in items]
         
-        # Add low balance warning
-        balance_warning = ""
-        if account_balance < 500000:  # Less than 500k
-            balance_warning = f" ⚠️"
+        # Add count if more items
+        if len(expenses_by_category[category]) > 3:
+            remaining_count = len(expenses_by_category[category]) - 3
+            expense_items.append(f"  _... +{remaining_count} giao dịch_")
         
-        # Enhanced category header with account info and clickable command
-        header = f"""{category_emoji} *{category.upper()}* - `{format_currency(category_total)}`{budget_info}
-{account_emoji} _{account_name}: {format_currency(account_balance)}_{balance_warning}
-💡 _Chi tiết: `/list {category}`_"""
-        
-        # Top 8 items
-        items = sorted(expenses_by_category[category], key=lambda x: x["date"], reverse=True)[:8]
-        expense_items = [format_expense_item(item) for item in items]
-        
-        # More items info with helpful command
-        if len(expenses_by_category[category]) > 8:
-            remaining_count = len(expenses_by_category[category]) - 8
-            more_info = f"  _... và {remaining_count} giao dịch khác (xem: `/list {category}`)_"
-            expense_items.append(more_info)
-        
+        header = f"{category_emoji} *{category}* `{format_currency(category_total)}`"
         categories_content.append(header + "\n" + "\n".join(expense_items))
     
-    # Calculate financial data
+    # Financial summary - CONCISE
     total_income = income_breakdown["total"]
-    total_expenses = expense_breakdown["total"]
-    net_savings = total_income - total_expenses
+    net_savings = total_income - total_month
     
-    # Calculate wishlist scenarios
-    money_after_level1 = net_savings - wishlist_sums["level1"]
-    money_after_level1_and_2 = net_savings - wishlist_sums["level1_and_2"]
-    
-    # Budget analysis
-    total_budget = get_total_budget(user_id)
-    budget_remaining = total_budget - total_expenses if total_budget > 0 else 0
-    money_after_all = budget_remaining - wishlist_sums["level1_and_2"]
-    
-    # Build wishlist section
-    wishlist_section = ""
-    if wishlist_sums["level1"] > 0 or wishlist_sums["level2"] > 0:
-        wishlist_section += "\n\n🛍️ *WISHLIST ANALYSIS:*"
-        
-        if wishlist_sums["level1"] > 0:
-            wishlist_section += f"\n🔒 *Level 1:* `{format_currency(wishlist_sums['level1'])}`"
-        
-        if wishlist_sums["level2"] > 0:
-            wishlist_section += f"\n🚨 *Level 2:* `{format_currency(wishlist_sums['level2'])}`"
-        
-        if money_after_level1 >= 0:
-            wishlist_section += f"\n✅ *Sau Level 1:* `{format_currency(money_after_level1)}`"
-        else:
-            wishlist_section += f"\n⚠️ *Thiếu Level 1:* `{format_currency(abs(money_after_level1))}`"
-        
-        if money_after_level1_and_2 >= 0:
-            wishlist_section += f"\n✅ *Sau Level 1+2:* `{format_currency(money_after_level1_and_2)}`"
-        else:
-            wishlist_section += f"\n⚠️ *Thiếu Level 1+2:* `{format_currency(abs(money_after_level1_and_2))}`"
-        
-        if total_budget > 0:
-            if money_after_all >= 0:
-                wishlist_section += f"\n💰 *Sau Budget+Level1+2:* `{format_currency(money_after_all)}`"
-            else:
-                wishlist_section += f"\n🔴 *Vượt Budget+Level1+2:* `{format_currency(abs(money_after_all))}`"
-    
-    # Build account summary section - ALWAYS show this
+    # Account summary - SIMPLE
     spending_total = account_balances.get('need', 0) + account_balances.get('fun', 0)
-    account_section = f"""
-
-💳 *TÀI KHOẢN HIỆN TẠI:*
-🛒 *Tiêu dùng* (Thiết yếu + Giải trí): `{format_currency(spending_total)}`
-🍚 *Thiết yếu*: `{format_currency(account_balances.get('need', 0))}`
-🎮 *Giải trí*: `{format_currency(account_balances.get('fun', 0))}`
-🏗️ *Xây dựng*: `{format_currency(account_balances.get('construction', 0))}`
-💰 *Tiết kiệm*: `{format_currency(account_balances.get('saving', 0))}`
-📈 *Đầu tư*: `{format_currency(account_balances.get('invest', 0))}`"""
     
-    # Create message - combine wishlist section and account section
-    full_analysis_section = wishlist_section + account_section
+    # Wishlist summary - BRIEF
+    wishlist_info = ""
+    if wishlist_sums["level1"] > 0:
+        after_level1 = net_savings - wishlist_sums["level1"]
+        if after_level1 >= 0:
+            wishlist_info = f"\n🔒 Sau Level 1: `{format_currency(after_level1)}`"
+        else:
+            wishlist_info = f"\n🔒 Thiếu Level 1: `{format_currency(abs(after_level1))}`"
     
-    # Get salary month display range
     date_range = get_salary_month_display(target_year, target_month)
     
-    message = get_template("list_overview",
-        month=target_month,
-        year=target_year,
-        date_range=date_range,
-        categories_content="\n\n".join(categories_content),
-        total=format_currency(total_month),
-        construction_income=format_currency(income_breakdown["construction"]),
-        construction_expense=format_currency(expense_breakdown["construction"]),
-        construction_net=format_currency(income_breakdown["construction"] - expense_breakdown["construction"]),
-        general_income=format_currency(income_breakdown["general"]),
-        general_expense=format_currency(expense_breakdown["general"]),
-        general_net=format_currency(income_breakdown["general"] - expense_breakdown["general"]),
-        wishlist_section=full_analysis_section  # This now includes both wishlist and account info
-    )
-    
-    # Add enhanced usage instructions
-    enhanced_usage = f"""
+    message = f"""📝 *THÁNG LƯƠNG {target_month}/{target_year}*
+📅 {date_range}
 
-💡 *LỆNH /list NÂNG CAO:*
-• `/list [danh mục]` - Chi tiết danh mục (VD: `/list ăn uống`)
-• `/list [ngày]` - Chi tiêu theo ngày (VD: `/list 15/08/2025`)
-• `/list [danh mục] [ngày]` - Kết hợp (VD: `/list mèo 20/8/25`)
+{chr(10*2).join(categories_content)}
 
-📅 *Định dạng ngày:* dd/mm/yyyy, dd/mm/yy, dd-mm-yyyy, dd.mm.yyyy"""
+💰 *TỔNG: {format_currency(total_month)}*
+
+💵 Thu: `{format_currency(total_income)}`
+📈 Tiết kiệm: `{format_currency(net_savings)}`{wishlist_info}
+
+💳 Tài khoản tiêu dùng: `{format_currency(spending_total)}`
+💰 Tiết kiệm: `{format_currency(account_balances.get('saving', 0))}`"""
     
-    final_message = message + enhanced_usage
-    
-    await send_long_message(update, final_message)
+    await send_long_message(update, message)
 
 def _find_matching_category(category_input: str) -> str:
-    """Find matching category with better Vietnamese support"""
+    """Find matching category - simplified"""
     from difflib import get_close_matches
     
     if not category_input:
         return None
     
-    # Clean the input
     category_input = category_input.strip().lower()
     
     # Try exact match first
     if category_input in EXPENSE_CATEGORIES:
         return category_input
     
-    # Try fuzzy matching with lower cutoff for better Vietnamese matching
+    # Try fuzzy matching
     try:
         close_matches = get_close_matches(category_input, EXPENSE_CATEGORIES, n=1, cutoff=0.4)
         if close_matches:
             return close_matches[0]
-    except Exception as e:
-        logging.error(f"Error in fuzzy matching: {e}")
+    except Exception:
+        pass
     
-    # Try partial matching - check if input is contained in any category
-    try:
-        for category in EXPENSE_CATEGORIES:
-            if category_input in category or category in category_input:
-                return category
-    except Exception as e:
-        logging.error(f"Error in partial matching: {e}")
-    
-    # Try matching without Vietnamese accents/spaces
-    try:
-        simplified_input = category_input.replace(" ", "").replace("ă", "a").replace("ê", "e").replace("ô", "o")
-        for category in EXPENSE_CATEGORIES:
-            simplified_category = category.replace(" ", "").replace("ă", "a").replace("ê", "e").replace("ô", "o")
-            if simplified_input == simplified_category:
-                return category
-    except Exception as e:
-        logging.error(f"Error in simplified matching: {e}")
+    # Try partial matching
+    for category in EXPENSE_CATEGORIES:
+        if category_input in category or category in category_input:
+            return category
     
     # Try common variations
-    try:
-        variations = {
-            "an": "ăn uống",
-            "anuong": "ăn uống", 
-            "food": "ăn uống",
-            "meo": "mèo",
-            "cat": "mèo",
-            "congtrinh": "công trình",
-            "construction": "công trình",
-            "dichuyển": "di chuyển",
-            "dichuyen": "di chuyển",
-            "transport": "di chuyển",
-            "hoadon": "hóa đơn",
-            "bills": "hóa đơn",
-            "canhan": "cá nhân",
-            "personal": "cá nhân",
-            "linhtinh": "linh tinh",
-            "misc": "linh tinh"
-        }
-        
-        if category_input in variations:
-            return variations[category_input]
-    except Exception as e:
-        logging.error(f"Error in variations matching: {e}")
+    variations = {
+        "an": "ăn uống", "anuong": "ăn uống", "food": "ăn uống",
+        "meo": "mèo", "cat": "mèo",
+        "congtrinh": "công trình", "construction": "công trình",
+        "dichuyen": "di chuyển", "transport": "di chuyển",
+        "hoadon": "hóa đơn", "bills": "hóa đơn",
+        "canhan": "cá nhân", "personal": "cá nhân",
+        "linhtinh": "linh tinh", "misc": "linh tinh"
+    }
     
-    return None
+    return variations.get(category_input)
 
 async def _initialize_all_accounts(user_id):
     """Initialize all account types with 0 balance"""
@@ -671,11 +463,9 @@ async def _initialize_all_accounts(user_id):
     all_account_types = ["need", "fun", "saving", "invest", "construction"]
     
     for account_type in all_account_types:
-        # Check if account already exists
         existing_account = db.get_account_by_type(user_id, account_type)
         
         if not existing_account.data:
-            # Only create if it doesn't exist
             account_data = {
                 "user_id": user_id,
                 "account_type": account_type,
@@ -685,5 +475,4 @@ async def _initialize_all_accounts(user_id):
             try:
                 db.supabase.table("accounts").insert(account_data).execute()
             except Exception as e:
-                logging.error(f"Error initializing account {account_type} for user {user_id}: {e}")
-                # Continue with other accounts even if one fails
+                logging.error(f"Error initializing account {account_type}: {e}")
