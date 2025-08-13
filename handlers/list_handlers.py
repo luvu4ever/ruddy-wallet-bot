@@ -12,9 +12,18 @@ from utils import (
     format_currency
 )
 from config import (
-    EXPENSE_CATEGORIES, get_category_emoji, format_budget_info, 
-    format_expense_item, get_template
+    EXPENSE_CATEGORIES, get_category_emoji
 )
+
+def format_expense_item_simple(expense):
+    """Simple expense formatting without templates"""
+    amount = float(expense["amount"])
+    description = expense["description"]
+    
+    date_obj = datetime.strptime(expense["date"], "%Y-%m-%d")
+    date_str = f"{date_obj.day:02d}/{date_obj.month:02d}"
+    
+    return f"{date_str} {description} `{format_currency(amount)}`"
 
 async def list_expenses_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Enhanced /list command with multiple modes:
@@ -175,8 +184,11 @@ Không có chi tiêu nào."""
         return
     
     # Get budget and account info
-    from .budget_handlers import calculate_remaining_budget
-    remaining_budget = calculate_remaining_budget(user_id, month_start)
+    try:
+        from .budget_handlers import calculate_remaining_budget
+        remaining_budget = calculate_remaining_budget(user_id, month_start)
+    except ImportError:
+        remaining_budget = {}
     
     from config import get_account_for_category
     account_type = get_account_for_category(category)
@@ -197,7 +209,7 @@ Không có chi tiêu nào."""
     
     # Sort expenses by date (newest first)
     sorted_expenses = sorted(expenses.data, key=lambda x: x["date"], reverse=True)
-    expense_lines = [format_expense_item(expense) for expense in sorted_expenses]
+    expense_lines = [format_expense_item_simple(expense) for expense in sorted_expenses]
     
     category_emoji = get_category_emoji(category)
     date_range = get_salary_month_display(target_year, target_month)
@@ -330,16 +342,28 @@ Chưa có chi tiêu nào."""
         await send_formatted_message(update, message)
         return
     
-    # Get required data
-    from .budget_handlers import calculate_remaining_budget, get_total_budget
-    from .wishlist_handlers import get_wishlist_priority_sums
-    from .income_handlers import calculate_income_by_type, calculate_expenses_by_income_type
+    # Get required data with error handling
+    try:
+        from .budget_handlers import calculate_remaining_budget, get_total_budget
+        remaining_budget = calculate_remaining_budget(user_id, month_start)
+        total_budget = get_total_budget(user_id)
+    except ImportError:
+        remaining_budget = {}
+        total_budget = 0
     
-    remaining_budget = calculate_remaining_budget(user_id, month_start)
-    wishlist_sums = get_wishlist_priority_sums(user_id)
-    income_breakdown = calculate_income_by_type(user_id, month_start)
-    expense_breakdown = calculate_expenses_by_income_type(user_id, month_start)
-    total_budget = get_total_budget(user_id)
+    try:
+        from .wishlist_handlers import get_wishlist_priority_sums
+        wishlist_sums = get_wishlist_priority_sums(user_id)
+    except ImportError:
+        wishlist_sums = {"level1": 0, "level2": 0, "level1_and_2": 0}
+    
+    try:
+        from .income_handlers import calculate_income_by_type, calculate_expenses_by_income_type
+        income_breakdown = calculate_income_by_type(user_id, month_start)
+        expense_breakdown = calculate_expenses_by_income_type(user_id, month_start)
+    except ImportError:
+        income_breakdown = {"total": 0, "construction": 0, "general": 0}
+        expense_breakdown = {"total": 0, "construction": 0, "general": 0}
     
     # Get account balances
     account_balances = {}
@@ -362,7 +386,7 @@ Chưa có chi tiêu nào."""
         expenses_by_category[category].append(expense)
         total_month += amount
     
-    # Build categories content - MUCH shorter
+    # Build categories content - FIXED STRUCTURE
     categories_content = []
     category_totals = {cat: sum(float(exp["amount"]) for exp in items) 
                       for cat, items in expenses_by_category.items()}
@@ -372,17 +396,24 @@ Chưa có chi tiêu nào."""
     for category, category_total in sorted_categories:
         category_emoji = get_category_emoji(category)
         
-        # Show only top 3 items + count
-        items = sorted(expenses_by_category[category], key=lambda x: x["date"], reverse=True)[:3]
-        expense_items = [f"  {format_expense_item(item)}" for item in items]
+        # Category header on its own line
+        header = f"{category_emoji} *{category}* `{format_currency(category_total)}`"
         
-        # Add count if more items
+        # Show only top 3 items
+        items = sorted(expenses_by_category[category], key=lambda x: x["date"], reverse=True)[:3]
+        expense_items = []
+        
+        for item in items:
+            expense_items.append(f"  {format_expense_item_simple(item)}")
+        
+        # Add count if more items - on separate line
         if len(expenses_by_category[category]) > 3:
             remaining_count = len(expenses_by_category[category]) - 3
             expense_items.append(f"  _... +{remaining_count} giao dịch_")
         
-        header = f"{category_emoji} *{category}* `{format_currency(category_total)}`"
-        categories_content.append(header + "\n" + "\n".join(expense_items))
+        # Combine header with items
+        category_section = header + "\n" + "\n".join(expense_items)
+        categories_content.append(category_section)
     
     # Financial summary - CONCISE
     total_income = income_breakdown["total"]
@@ -405,7 +436,7 @@ Chưa có chi tiêu nào."""
     message = f"""📝 *THÁNG LƯƠNG {target_month}/{target_year}*
 📅 {date_range}
 
-{chr(10*2).join(categories_content)}
+{chr(10).join(categories_content)}
 
 💰 *TỔNG: {format_currency(total_month)}*
 
@@ -458,8 +489,6 @@ def _find_matching_category(category_input: str) -> str:
 
 async def _initialize_all_accounts(user_id):
     """Initialize all account types with 0 balance"""
-    from datetime import datetime
-    
     all_account_types = ["need", "fun", "saving", "invest", "construction"]
     
     for account_type in all_account_types:
