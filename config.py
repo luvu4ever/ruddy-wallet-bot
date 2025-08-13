@@ -26,51 +26,43 @@ def get_income_emoji(income_type):
 # =============================================================================
 
 MESSAGE_TEMPLATES = {
-    "list_overview": """📝 *CHI TIÊU THÁNG LƯƠNG {month}/{year}*
-📅 *({date_range})*
+    "list_overview": """📝 *THÁNG LƯƠNG {month}/{year}*
+📅 {date_range}
 
 {categories_content}
 
-💰 *TỔNG CỘNG: {total}*
+💰 *TỔNG: {total}*
 
-📊 *PHÂN TÍCH THU CHI:*
-🏗️ *CÔNG TRÌNH:* Thu `{construction_income}` - Chi `{construction_expense}` = `{construction_net}`
-💰 *KHÁC:* Thu `{general_income}` - Chi `{general_expense}` = `{general_net}`{wishlist_section}
+💵 Thu: `{construction_income}` + `{general_income}`
+💸 Chi: `{construction_expense}` + `{general_expense}` 
+📈 Tiết kiệm: `{construction_net}` + `{general_net}`{wishlist_section}""",
 
-💡 _Dùng `/list [danh mục]` để xem tất cả giao dịch của danh mục_""",
+    "summary_report": """📊 *BÁO CÁO {month}/{year}*
+📅 {date_range}{subscription_info}
 
-    "category_header": """{emoji} *{category}* - `{total}`{budget_info}""",
-    "expense_item": """  {date} - {description} - `{amount}`""",
-    "more_items": """  _... và {count} giao dịch khác_""",
+💵 Thu: `{total_income}`
+💰 Chi: `{total_expenses}` 
+📈 Tiết kiệm: `{net_savings}`
+
+🏗️ Xây dựng: Thu `{construction_income}` - Chi `{construction_expense}` = `{construction_net}`
+💰 Khác: Thu `{general_income}` - Chi `{general_expense}` = `{general_net}`{budget_info}
+
+📊 {expense_count} chi tiêu, {income_count} thu nhập""",
+
+    "savings_update": """✅ *CẬP NHẬT TIẾT KIỆM*
+
+💰 {amount}""",
+
+    # ADD THIS MISSING TEMPLATE:
+    "expense_item": """{date} {description} `{amount}`""",
     
-    "summary_report": """📊 *BÁO CÁO THÁNG LƯƠNG {month}/{year}*
-📅 *({date_range})*{subscription_info}
-
-💵 *Thu nhập:* `{total_income}`
-💰 *Chi tiêu:* `{total_expenses}`
-📈 *Tiết kiệm ròng:* `{net_savings}`
-
-🏗️ *PHÂN TÍCH CÔNG TRÌNH:*
-💵 Thu nhập: `{construction_income}`
-💰 Chi tiêu: `{construction_expense}`
-📊 Lãi/lỗ: `{construction_net}`
-
-💰 *PHÂN TÍCH KHÁC:*
-💵 Thu nhập: `{general_income}`
-💰 Chi tiêu: `{general_expense}`
-📊 Lãi/lỗ: `{general_net}`{budget_info}
-
-📊 *Giao dịch:* {expense_count} chi tiêu, {income_count} thu nhập""",
-
+    "category_header": """{emoji} *{category}* - `{total}`{budget_info}""",
+    "more_items": """_... +{count} giao dịch_""",
+    
     "budget_section": """
 💰 *BUDGET:*
-💰 *Budget tháng:* `{budget_total}`
-{budget_status} *{status_text}:* `{amount}`""",
-
-    "savings_update": """✅ *ĐÃ CẬP NHẬT TIẾT KIỆM!*
-
-💎 *TIẾT KIỆM MỚI*
-💰 *Số tiền:* {amount}"""
+💰 Budget tháng: `{budget_total}`
+{budget_status} {status_text}: `{amount}`"""
 }
 
 # Simple formatting functions
@@ -87,11 +79,13 @@ def format_budget_info(remaining_budget, category):
         return f" _⚠️ (vượt: {format_currency(abs(remaining))})_"
 
 def format_expense_item(expense):
+    """Format expense item - concise version"""
     from datetime import datetime
     
     amount = float(expense["amount"])
     description = expense["description"]
     
+    # Get date in dd/mm format
     date_obj = datetime.strptime(expense["date"], "%Y-%m-%d")
     date_str = f"{date_obj.day:02d}/{date_obj.month:02d}"
     
@@ -111,109 +105,63 @@ def format_currency(amount: float) -> str:
 # =============================================================================
 
 BOT_MESSAGES = {
-    "welcome": """🤖 *CHÀO MỪNG ĐẾN VỚI BOT TÀI CHÍNH!*
+    "welcome": """🤖 *CHÀO MỪNG!*
 
-*📝 CÁCH SỬ DỤNG:*
-• *Chi tiêu:* `50k bún bò huế`, `1.5m sofa`
-• *Thu nhập:* `/income salary 3m`
+*📝 SỬ DỤNG:*
+• `50k cà phê` → ghi chi tiêu
+• `/income salary 3m` → thu nhập
 
-*⚡ LỆNH NHANH:*
-📊 `/list` - Xem chi tiêu + wishlist analysis
-📈 `/summary` - Báo cáo tháng lương
-💵 `/income` - Quản lý thu nhập
+*⚡ LỆNH:*
+📊 `/list` - Tổng quan
+📊 `/list ăn uống` - Chi tiết danh mục
+📊 `/list 15/08/2025` - Chi tiêu ngày
+📈 `/summary` - Báo cáo tháng
 💰 `/budget ăn uống 1.5m` - Đặt budget
-🛍️ `/wishlist` - Xem wishlist (5 levels)
-❓ `/help` - Hướng dẫn
-
-📅 *THÁNG LƯƠNG:* 26 đến 25 (VD: T8 = 26/7-25/8)""",
+🛍️ `/wishlist` - Wishlist
+❓ `/help` - Hướng dẫn""",
     
     "help": """💡 *HƯỚNG DẪN*
 
 *📝 CHI TIÊU:*
-🍜 `50k bún bò huế` → ăn uống
-🐾 `100k cát mèo` → mèo
-🏗️ `1.5m sofa` → công trình
+• `50k bún bò`, `1.5m sofa`
 
 *💵 THU NHẬP:*
-💰 `/income salary 3m` → lương tháng
-🏗️ `/income construction 2m` → thu nhập xây dựng
+• `/income salary 3m`
+• `/income construction 2m`
 
-*💳 TÀI KHOẢN:*
-📊 `/account` → xem tất cả tài khoản
-💰 `/accountedit expense 500k` → cập nhật số dư
-💱 `/allocation` → thiết lập phân bổ thu nhập
+*📊 XEM:*
+• `/list` - Tổng quan
+• `/list ăn uống` - Chi tiết danh mục  
+• `/list 15/08/2025` - Chi tiêu ngày
+• `/summary` - Báo cáo tháng
 
-*🛍️ WISHLIST (5 LEVELS):*
-➕ `/wishadd iPhone 25m prio:1` → thêm (level 1-5)
-📋 `/wishlist` → xem + phân tích tài chính
-❌ `/wishremove 1` → xóa
+*💰 QUẢN LÝ:*
+• `/budget ăn uống 1.5m` - Đặt budget
+• `/account` - Xem tài khoản
+• `/allocation` - Phân bổ thu nhập
 
-*💰 BUDGET:*
-💰 `/budget ăn uống 1.5m` → đặt budget
-📊 `/budgetlist` → xem budget plans
+*🛍️ WISHLIST:*
+• `/wishadd iPhone 25m prio:1` - Thêm
+• `/wishlist` - Xem + phân tích
+• `/wishremove iPhone` - Xóa
 
-*📅 ĐÓNG THÁNG:*
-🔚 `/endmonth` → đóng tháng thủ công
-📅 `/monthhistory` → xem lịch sử đóng tháng
-
-*🔍 XEM:*
-📊 `/list` → tổng quan + wishlist analysis
-📈 `/summary` → báo cáo tháng lương
-💎 `/saving` → tiết kiệm
-
-*📅 THÁNG LƯƠNG:*
-• Mỗi tháng chạy từ 26 đến 25
-• VD: Tháng 8 = 26/7-25/8
-• `/summary 8/2025` = báo cáo 26/7-25/8/2025
-• Subscriptions tự động thêm ngày 26""",
+*📅 THÁNG LƯƠNG:* 26-25 (T8 = 26/7-25/8)""",
     
-    "income_types": """💵 *LOẠI THU NHẬP*
+    "no_expenses_this_month": """📝 Tháng lương {month}/{year}
 
-🏗️ *construction* - Thu nhập xây dựng
-💵 *salary* - Lương tháng  
-🎉 *random* - Thu nhập bổ sung
-
-*💡 CÁCH DÙNG:*
-• `/income salary 3m lương tháng`
-• `/income construction 2m làm nhà`
-• `/income random 500k bán đồ`
-
-📅 *Lưu ý:* Construction không bị phân bổ vào tài khoản khác""",
+Chưa có chi tiêu nào.""",
     
-    "format_errors": {
-        "income_usage": "❌ Cách dùng: `/income salary 3m [mô tả]`",
-        "invalid_income_type": "❌ Loại thu nhập '{type}' không hợp lệ. Dùng: construction, salary, random",
-        "savings_usage": "❌ Cách dùng: `/editsaving 500k`",
-        "invalid_number": "❌ Số tiền không hợp lệ. {example}"
-    },
+    "savings_current": """💰 *TIẾT KIỆM*
+
+💎 {amount}
+📅 {date}""",
     
-    "no_expenses_this_month": """📝 *CHƯA CÓ CHI TIÊU*
-
-📅 *Tháng lương {month}/{year}*
-
-Chưa có chi tiêu nào trong tháng này.
-Hãy bắt đầu ghi chi tiêu bằng cách nhắn: `50k cà phê`""",
+    "savings_none": """💰 Chưa có tiết kiệm.
+Dùng `/editsaving 500k` để bắt đầu.""",
     
-    "savings_current": """💰 *TIẾT KIỆM HIỆN TẠI*
+    "unknown_message": """❓ Không hiểu tin nhắn.
 
-💎 *Số tiền:* {amount}
-📅 *Cập nhật:* {date}
-
-💡 _Dùng `/editsaving [số mới]` để thay đổi_""",
-    
-    "savings_none": """💰 *CHƯA CÓ TIẾT KIỆM*
-
-Chưa có dữ liệu tiết kiệm.
-Dùng `/editsaving 500k` để bắt đầu ghi nhận tiết kiệm.""",
-    
-    "unknown_message": """❓ *KHÔNG HIỂU TIN NHẮN*
-
-💡 *THỬ:*
-• `50k cà phê` → ghi chi tiêu
-• `/help` → xem hướng dẫn
-• `/list` → xem tổng quan
-
-📅 *Tháng lương:* 26-25 (VD: T8 = 26/7-25/8)"""
+VD: `50k cà phê`, `/help`"""
 }
 
 # ... rest of the file remains the same ...
