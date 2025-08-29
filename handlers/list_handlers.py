@@ -387,6 +387,8 @@ Chưa có chi tiêu nào."""
     
     accounts_data = db.get_accounts(user_id)
     if not accounts_data.data:
+        # Import from account_handlers (SINGLE SOURCE - removed duplicate)
+        from .account_handlers import _initialize_all_accounts
         await _initialize_all_accounts(user_id)
     
     for account_type in all_account_types:
@@ -524,22 +526,3 @@ def _find_matching_category(category_input: str) -> str:
     }
     
     return variations.get(category_input)
-
-async def _initialize_all_accounts(user_id):
-    """Initialize all account types with 0 balance"""
-    all_account_types = ["need", "fun", "saving", "invest", "construction"]
-    
-    for account_type in all_account_types:
-        existing_account = db.get_account_by_type(user_id, account_type)
-        
-        if not existing_account.data:
-            account_data = {
-                "user_id": user_id,
-                "account_type": account_type,
-                "current_balance": 0,
-                "last_updated": datetime.now().isoformat()
-            }
-            try:
-                db.supabase.table("accounts").insert(account_data).execute()
-            except Exception as e:
-                logging.error(f"Error initializing account {account_type}: {e}")

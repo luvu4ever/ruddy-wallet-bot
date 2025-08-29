@@ -6,12 +6,12 @@ import logging
 from database import db
 from utils import (
     check_authorization, send_formatted_message, format_currency,
-    get_current_month, get_month_date_range, get_month_display  # Updated function names
+    get_current_month, get_month_date_range, get_month_display
 )
 from config import ACCOUNT_DESCRIPTIONS
 
 async def endmonth_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Manual month-end processing: /endmonth - now uses calendar cycle"""
+    """Manual month-end processing: /endmonth - USES CONSOLIDATED DB FUNCTIONS"""
     if not await check_authorization(update):
         return
     
@@ -20,7 +20,7 @@ async def endmonth_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Get current calendar month instead of salary month
     current_month, current_year = get_current_month()
     
-    # Check if calendar month is already closed
+    # Check if calendar month is already closed - USES CONSOLIDATED FUNCTION
     existing_closure = db.check_monthly_closure(user_id, current_year, current_month)
     if existing_closure.data:
         closure_date = existing_closure.data[0]["created_at"][:10]
@@ -79,12 +79,12 @@ async def endmonth_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🎮 Giải trí: `{format_currency(fun_balance)}`
 💰 Tiết kiệm: `{format_currency(saving_balance)}`
 📈 Đầu tư: `{format_currency(invest_balance)}`
-🏗️ Xây dựng: `{format_currency(construction_balance)}`
+🗯️ Xây dựng: `{format_currency(construction_balance)}`
 
 🔄 *SẼ THỰC HIỆN:*
 • Chuyển số dư Thiết yếu → Tiết kiệm: `{format_currency(excess_need)}`
 • Chuyển số dư Giải trí → Tiết kiệm: `{format_currency(excess_fun)}`
-• Đặt lại Thiết yếu và Giải trí về 0đ
+• Đặt lại Thiết yếu và Giải trí về 0₫
 • Tiết kiệm mới: `{format_currency(new_saving_balance)}`
 
 ⚠️ *CẢNH BÁO: Không thể hoàn tác!*
@@ -153,7 +153,7 @@ async def handle_month_end_confirmation(update: Update, context: ContextTypes.DE
         return True
 
 async def _execute_month_end_processing(user_id: int, pending_data: dict):
-    """Execute the actual month-end processing"""
+    """Execute the actual month-end processing - USES CONSOLIDATED DB FUNCTIONS"""
     try:
         month = pending_data['month']
         year = pending_data['year']
@@ -180,7 +180,7 @@ async def _execute_month_end_processing(user_id: int, pending_data: dict):
         closure_result = db.insert_monthly_closure(closure_data)
         closure_id = closure_result.data[0]["id"] if closure_result.data else None
         
-        # 2. Transfer money from need/fun to savings (if any)
+        # 2. Transfer money from need/fun to savings using CONSOLIDATED DB FUNCTIONS
         if total_transfer > 0:
             # Transfer from need account
             if need_balance > 0:
@@ -202,7 +202,7 @@ async def _execute_month_end_processing(user_id: int, pending_data: dict):
                 f"Month-end transfer from need+fun: {format_currency(total_transfer)}", closure_id
             )
         
-        # 3. Get final balances
+        # 3. Get final balances using CONSOLIDATED DB FUNCTIONS
         final_saving_balance = db.get_account_balance(user_id, "saving")
         final_invest_balance = db.get_account_balance(user_id, "invest")
         final_construction_balance = db.get_account_balance(user_id, "construction")
@@ -216,14 +216,14 @@ async def _execute_month_end_processing(user_id: int, pending_data: dict):
 🔄 *CÁC THAO TÁC ĐÃ THỰC HIỆN:*
 • Chuyển từ Thiết yếu: `{format_currency(need_balance)}` → Tiết kiệm
 • Chuyển từ Giải trí: `{format_currency(fun_balance)}` → Tiết kiệm
-• Đặt lại Thiết yếu và Giải trí về `0đ`
+• Đặt lại Thiết yếu và Giải trí về `0₫`
 
 💳 *TÀI KHOẢN SAU KHI ĐÓNG:*
-🏠 Thiết yếu: `0đ`
-🎮 Giải trí: `0đ`
+🏠 Thiết yếu: `0₫`
+🎮 Giải trí: `0₫`
 💰 Tiết kiệm: `{format_currency(final_saving_balance)}`
 📈 Đầu tư: `{format_currency(final_invest_balance)}`
-🏗️ Xây dựng: `{format_currency(final_construction_balance)}`
+🗯️ Xây dựng: `{format_currency(final_construction_balance)}`
 
 📊 *TỔNG KẾT THÁNG:*
 💵 Thu nhập: `{format_currency(pending_data['total_income'])}`

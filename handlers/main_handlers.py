@@ -8,11 +8,10 @@ from ai_parser import parse_message_with_gemini, generate_monthly_summary
 from utils import (
     check_authorization, send_formatted_message, send_long_message,
     parse_amount, safe_parse_amount, parse_date_argument, get_month_date_range,
-    get_current_month, get_month_display  # Updated function names
+    get_current_month, get_month_display, format_currency  # UPDATED IMPORT
 )
 from config import (
-    get_message, get_template, DEFAULT_SUBSCRIPTION_CATEGORY,
-    format_currency
+    get_message, get_template, DEFAULT_SUBSCRIPTION_CATEGORY
 )
 
 # Set up logging
@@ -33,7 +32,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_formatted_message(update, get_message("welcome"))
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Simple message handler with account-based expense processing - allows negative balances"""
+    """Simple message handler with account-based expense processing - USES CONSOLIDATED DB FUNCTIONS"""
     if not await check_authorization(update):
         return
     
@@ -72,8 +71,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("\n".join(responses))
         
 async def _process_expense_simple(user_id, amount, description, category):
-    """Simple expense processing - just save and deduct, allow negative balance with warning"""
-    from config import get_account_for_category, get_account_emoji_enhanced, get_account_name_enhanced, format_currency, get_category_emoji
+    """Simple expense processing - USES CONSOLIDATED DATABASE FUNCTION"""
+    from config import get_account_for_category, get_account_emoji_enhanced, get_account_name_enhanced, get_category_emoji
     from datetime import date
     
     # Get account for this category
@@ -91,7 +90,7 @@ async def _process_expense_simple(user_id, amount, description, category):
     expense_result = db.insert_expense(expense_data)
     expense_id = expense_result.data[0]["id"] if expense_result.data else None
     
-    # Deduct from account (allow negative balance - no validation)
+    # Deduct from account using CONSOLIDATED database function (allow negative balance - no validation)
     result, new_balance = db.update_account_balance(
         user_id, account_type, -amount,  # Negative for expense
         "expense", f"Expense: {description}", expense_id
@@ -232,7 +231,7 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     subscription_info = ""
     if subscription_expenses:
         sub_names = [sub["description"].replace(" (subscription)", "") for sub in subscription_expenses]
-        subscription_info = f"\n🔄 _Đã thêm subscriptions: {', '.join(sub_names)}_"
+        subscription_info = f"\n📄 _Đã thêm subscriptions: {', '.join(sub_names)}_"
     
     # Format budget info
     budget_info = ""
@@ -306,8 +305,9 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_formatted_message(update, message)
 
 async def _add_monthly_subscriptions(user_id, target_year, target_month, month_start, expenses):
-    """Add monthly subscriptions to expenses if not already added - now uses 1st timing"""
-    from utils import is_month_start_today
+    """Add monthly subscriptions to expenses if not already added - uses inline date check"""
+    # Inline month start check (previously is_month_start_today function)
+    is_month_start_today = datetime.now().day == 1
     
     subscriptions = db.get_subscriptions(user_id)
     subscription_expenses = []
