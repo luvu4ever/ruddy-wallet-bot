@@ -33,7 +33,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_formatted_message(update, get_message("welcome"))
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Enhanced message handler with account-based expense processing and month-end confirmation"""
+    """Simple message handler with account-based expense processing - allows negative balances"""
     if not await check_authorization(update):
         return
     
@@ -53,10 +53,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Handle different message types
     if message_type == "expenses":
-        # Process expenses with account validation
+        # Process expenses - simple version that allows negative
         for expense in parsed_data.get("expenses", []):
             try:
-                expense_result = await _process_expense_with_account_validation(
+                expense_result = await _process_expense_simple(
                     user_id, expense["amount"], expense["description"], 
                     expense.get("category", "khác")
                 )
@@ -71,34 +71,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if responses:
         await update.message.reply_text("\n".join(responses))
         
-async def _process_expense_with_account_validation(user_id, amount, description, category):
-    """Process expense with account balance validation"""
+async def _process_expense_simple(user_id, amount, description, category):
+    """Simple expense processing - just save and deduct, allow negative balance with warning"""
     from config import get_account_for_category, get_account_emoji_enhanced, get_account_name_enhanced, format_currency, get_category_emoji
     from datetime import date
     
     # Get account for this category
     account_type = get_account_for_category(category)
-
-    print(f"DEBUG - Category '{category}' maps to account '{account_type}'")
-    
-    # Check account balance
-    current_balance = db.get_account_balance(user_id, account_type)
-    
-    # Validate sufficient funds
-    if current_balance < amount:
-        account_emoji = get_account_emoji_enhanced(account_type)
-        account_name = get_account_name_enhanced(account_type)
-        
-        return f"""❌ *KHÔNG ĐỦ TIỀN!*
-
-💰 *Chi tiêu*: {format_currency(amount)} - {description}
-📂 *Danh mục*: {category} → {account_emoji} {account_name}
-💳 *Số dư hiện tại*: {format_currency(current_balance)}
-⚠️ *Thiếu*: {format_currency(amount - current_balance)}
-
-💡 *GIẢI PHÁP:*
-• `/accountedit {account_type} [số mới]` - Điều chỉnh số dư
-• `/account` - Xem tất cả tài khoản"""
     
     # Save expense record
     expense_data = {
@@ -112,18 +91,31 @@ async def _process_expense_with_account_validation(user_id, amount, description,
     expense_result = db.insert_expense(expense_data)
     expense_id = expense_result.data[0]["id"] if expense_result.data else None
     
-    # Deduct from account
+    # Deduct from account (allow negative balance - no validation)
     result, new_balance = db.update_account_balance(
         user_id, account_type, -amount,  # Negative for expense
         "expense", f"Expense: {description}", expense_id
     )
     
-    # Success response with account info
+    # Get display info
     account_emoji = get_account_emoji_enhanced(account_type)
     account_name = get_account_name_enhanced(account_type)
     category_emoji = get_category_emoji(category)
     
-    return f"""✅ *ĐÃ GHI CHI TIÊU!*
+    # Build response - add warning if negative balance
+    if new_balance < 0:
+        return f"""⚠️ *ĐÃ GHI CHI TIÊU - SỐ ÂM!*
+
+💰 *Chi tiêu*: {format_currency(amount)} - {description}
+{category_emoji} *Danh mục*: {category}
+{account_emoji} *Từ tài khoản*: {account_name}
+🔴 *Số dư hiện tại*: {format_currency(new_balance)} _(SỐ ÂM!)_
+
+⚠️ *CẢNH BÁO*: Tài khoản {account_name} đã âm {format_currency(abs(new_balance))}
+
+💡 _Xem chi tiết: `/account {account_type}`_"""
+    else:
+        return f"""✅ *ĐÃ GHI CHI TIÊU!*
 
 💰 *Chi tiêu*: {format_currency(amount)} - {description}
 {category_emoji} *Danh mục*: {category}
@@ -242,7 +234,7 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     subscription_info = ""
     if subscription_expenses:
         sub_names = [sub["description"].replace(" (subscription)", "") for sub in subscription_expenses]
-        subscription_info = f"\n🔄 _Đã thêm subscriptions: {', '.join(sub_names)}_"
+        subscription_info = f"\n📄 _Đã thêm subscriptions: {', '.join(sub_names)}_"
     
     # Format budget info
     budget_info = ""
@@ -264,7 +256,7 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Add enhanced wishlist planning info to budget section
     if wishlist_sums["level1"] > 0 or wishlist_sums["level2"] > 0:
-        budget_info += f"\n\n🛍️ *WISHLIST ANALYSIS:*"
+        budget_info += f"\n\n🛒 *WISHLIST ANALYSIS:*"
         
         if wishlist_sums["level1"] > 0:
             budget_info += f"\n🔒 *Level 1 (Untouchable):* `{format_currency(wishlist_sums['level1'])}`"
