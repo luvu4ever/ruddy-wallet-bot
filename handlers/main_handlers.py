@@ -8,7 +8,7 @@ from ai_parser import parse_message_with_gemini, generate_monthly_summary
 from utils import (
     check_authorization, send_formatted_message, send_long_message,
     parse_amount, safe_parse_amount, parse_date_argument, get_month_date_range,
-    get_current_salary_month, get_salary_month_display  # NEW: salary cycle functions
+    get_current_month, get_month_display  # Updated function names
 )
 from config import (
     get_message, get_template, DEFAULT_SUBSCRIPTION_CATEGORY,
@@ -64,7 +64,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
             except Exception as e:
                 logging.error(f"Error processing expense: {e}")
-                responses.append("❌ Lỗi khi xử lý chi tiêu")
+                responses.append("⛔ Lỗi khi xử lý chi tiêu")
     else:
         responses.append(get_message("unknown_message"))
     
@@ -104,12 +104,12 @@ async def _process_expense_simple(user_id, amount, description, category):
     
     # Build response - add warning if negative balance
     if new_balance < 0:
-        return f"""⚠️ *ĐÃ GHI CHI TIÊU - SỐ ÂM!*
+        return f"""⚠️ *ĐÃ GHI CHI TIÊU - Số ÂM!*
 
 💰 *Chi tiêu*: {format_currency(amount)} - {description}
 {category_emoji} *Danh mục*: {category}
 {account_emoji} *Từ tài khoản*: {account_name}
-🔴 *Số dư hiện tại*: {format_currency(new_balance)} _(SỐ ÂM!)_
+🔴 *Số dư hiện tại*: {format_currency(new_balance)} _(Số ÂM!)_
 
 ⚠️ *CẢNH BÁO*: Tài khoản {account_name} đã âm {format_currency(abs(new_balance))}
 
@@ -151,14 +151,12 @@ async def edit_savings_command(update: Update, context: ContextTypes.DEFAULT_TYP
     args = context.args
     
     if not args:
-        await send_formatted_message(update, get_message("format_errors")["savings_usage"])
+        await send_formatted_message(update, "⛔ Cách dùng: `/editsaving 500k`")
         return
     
     success, new_amount, error_msg = safe_parse_amount(args[0])
     if not success:
-        example_msg = get_message("format_errors")["invalid_number"].format(
-            example="/editsaving 500k hoặc /editsaving 1.5tr")
-        await send_formatted_message(update, example_msg)
+        await send_formatted_message(update, "⛔ Số tiền không hợp lệ. VD: `/editsaving 500k` hoặc `/editsaving 1.5tr`")
         return
     
     # Update savings record
@@ -195,15 +193,15 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await send_formatted_message(update, error_msg)
             return
     else:
-        # Use current salary month
-        target_month, target_year = get_current_salary_month()
+        # Use current calendar month
+        target_month, target_year = get_current_month()
     
-    # Get data for the target salary month
+    # Get data for the target calendar month
     month_start, month_end = get_month_date_range(target_year, target_month)
     expenses = db.get_monthly_expenses(user_id, month_start)
     income = db.get_monthly_income(user_id, month_start)
     
-    # Auto-add subscriptions on 26th
+    # Auto-add subscriptions on 1st
     subscription_expenses = await _add_monthly_subscriptions(user_id, target_year, target_month, month_start, expenses)
     if subscription_expenses:
         expenses = db.get_monthly_expenses(user_id, month_start)
@@ -234,7 +232,7 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     subscription_info = ""
     if subscription_expenses:
         sub_names = [sub["description"].replace(" (subscription)", "") for sub in subscription_expenses]
-        subscription_info = f"\n📄 _Đã thêm subscriptions: {', '.join(sub_names)}_"
+        subscription_info = f"\n🔄 _Đã thêm subscriptions: {', '.join(sub_names)}_"
     
     # Format budget info
     budget_info = ""
@@ -282,8 +280,8 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 budget_info += f"\n🔴 *Vượt Budget+Level1+2:* `{format_currency(abs(money_after_all))}`"
     
-    # Get salary month display range
-    date_range = get_salary_month_display(target_year, target_month)
+    # Get calendar month display range
+    date_range = get_month_display(target_year, target_month)
     
     # Create summary using template
     message = get_template("summary_report",
@@ -308,31 +306,31 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_formatted_message(update, message)
 
 async def _add_monthly_subscriptions(user_id, target_year, target_month, month_start, expenses):
-    """Add monthly subscriptions to expenses if not already added - now uses 26th timing"""
-    from utils import is_salary_month_start_today
+    """Add monthly subscriptions to expenses if not already added - now uses 1st timing"""
+    from utils import is_month_start_today
     
     subscriptions = db.get_subscriptions(user_id)
     subscription_expenses = []
     
     if subscriptions.data:
         for subscription in subscriptions.data:
-            # Check if subscription expense already exists for this salary month
+            # Check if subscription expense already exists for this calendar month
             existing_sub_expense = None
             for expense in expenses.data:
                 if (expense["description"] == f"{subscription['service_name']} (subscription)" and
                     expense["date"] >= month_start.isoformat() and
-                    expense["date"] <= f"{target_year}-{target_month:02d}-25"):
+                    expense["date"] <= month_start.replace(day=31).isoformat()):
                     existing_sub_expense = expense
                     break
             
-            # If not exists, add it (using month_start which is the 26th)
+            # If not exists, add it (using month_start which is the 1st)
             if not existing_sub_expense:
                 subscription_expense = {
                     "user_id": user_id,
                     "amount": subscription["amount"],
                     "description": f"{subscription['service_name']} (subscription)",
                     "category": DEFAULT_SUBSCRIPTION_CATEGORY,
-                    "date": month_start.isoformat()  # This is the 26th of previous calendar month
+                    "date": month_start.isoformat()  # This is the 1st of the month
                 }
                 
                 db.insert_expense(subscription_expense)

@@ -8,7 +8,7 @@ import logging
 from database import db
 from utils import (
     check_authorization, send_formatted_message, send_long_message,
-    get_current_salary_month, get_month_date_range, get_salary_month_display,
+    get_current_month, get_month_date_range, get_month_display,
     format_currency
 )
 from config import (
@@ -28,7 +28,7 @@ def format_expense_item_simple(expense):
 async def list_expenses_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Enhanced /list command with multiple modes:
     - /list - Overview of all categories
-    - /list [category] - Category details for this salary month
+    - /list [category] - Category details for this month
     - /list dd/mm/yyyy - All expenses for specific date
     - /list [category] dd/mm/yyyy - Category expenses for specific date
     """
@@ -52,7 +52,7 @@ async def list_expenses_command(update: Update, context: ContextTypes.DEFAULT_TY
     
     # Handle different modes
     if parsed_args["mode"] == "category_month":
-        await _show_category_expenses_for_salary_month(
+        await _show_category_expenses_for_month(
             update, user_id, parsed_args["category"], 
             parsed_args["month"], parsed_args["year"]
         )
@@ -128,7 +128,7 @@ def _parse_list_arguments(args):
         if not matched_category:
             return {
                 "mode": "invalid",
-                "error_message": f"""❌ Không tìm thấy danh mục: `{category_text}`
+                "error_message": f"""⛔ Không tìm thấy danh mục: `{category_text}`
 
 📂 Có sẵn: {", ".join(EXPENSE_CATEGORIES[:6])}...
 
@@ -148,8 +148,8 @@ VD: `/list ăn uống`, `/list 15/08/2025`"""
             "target_date": found_date
         }
     elif matched_category and not found_date:
-        # Category for current salary month
-        current_month, current_year = get_current_salary_month()
+        # Category for current calendar month
+        current_month, current_year = get_current_month()
         return {
             "mode": "category_month",
             "category": matched_category,
@@ -159,25 +159,25 @@ VD: `/list ăn uống`, `/list 15/08/2025`"""
     else:
         return {
             "mode": "invalid",
-            "error_message": f"""❌ Cách dùng:
+            "error_message": f"""⛔ Cách dùng:
 • `/list` - Tổng quan
 • `/list ăn uống` - Chi tiết danh mục  
 • `/list 15/08/2025` - Chi tiêu ngày"""
         }
 
-async def _show_category_expenses_for_salary_month(update: Update, user_id: int, category: str, target_month: int, target_year: int):
-    """Show all expenses for specific category in salary month"""
+async def _show_category_expenses_for_month(update: Update, user_id: int, category: str, target_month: int, target_year: int):
+    """Show all expenses for specific category in calendar month"""
     
-    # Get expenses for this category and salary month
+    # Get expenses for this category and calendar month
     month_start, month_end = get_month_date_range(target_year, target_month)
     expenses = db.get_expenses_by_category(user_id, category, month_start)
     
     if not expenses.data:
         category_emoji = get_category_emoji(category)
-        date_range = get_salary_month_display(target_year, target_month)
+        date_range = get_month_display(target_year, target_month)
         message = f"""📂 {category_emoji} *{category.upper()}*
 
-📅 Tháng lương {target_month}/{target_year} ({date_range})
+📅 Tháng {target_month}/{target_year} ({date_range})
 
 Không có chi tiêu nào."""
         await send_formatted_message(update, message)
@@ -197,22 +197,38 @@ Không có chi tiêu nào."""
     # Calculate total spent
     total_spent = sum(float(expense["amount"]) for expense in expenses.data)
     
-    # Budget status (concise)
+    # Budget status (detailed)
     budget_info = ""
     if category in remaining_budget:
         budget_data = remaining_budget[category]
+        budget_amount = budget_data["budget"]
+        spent_amount = budget_data["spent"]
         remaining = budget_data["remaining"]
+        
+        # Calculate percentage used
+        percentage_used = (spent_amount / budget_amount * 100) if budget_amount > 0 else 0
+        
         if remaining >= 0:
-            budget_info = f"\n💰 Budget còn: `{format_currency(remaining)}`"
+            budget_info = f"""
+💰 *BUDGET THÁNG:*
+  • Tổng budget: `{format_currency(budget_amount)}`
+  • Đã dùng: `{format_currency(spent_amount)}` ({percentage_used:.1f}%)
+  • Còn lại: `{format_currency(remaining)}`"""
         else:
-            budget_info = f"\n⚠️ Vượt budget: `{format_currency(abs(remaining))}`"
+            budget_info = f"""
+💰 *BUDGET THÁNG:*
+  • Tổng budget: `{format_currency(budget_amount)}`
+  • Đã dùng: `{format_currency(spent_amount)}` ({percentage_used:.1f}%)
+  • ⚠️ Vượt budget: `{format_currency(abs(remaining))}`"""
+    else:
+        budget_info = f"\n💡 *Chưa đặt budget cho {category}*\nDùng `/budget {category} [số tiền]` để đặt budget"
     
     # Sort expenses by date (newest first)
     sorted_expenses = sorted(expenses.data, key=lambda x: x["date"], reverse=True)
     expense_lines = [format_expense_item_simple(expense) for expense in sorted_expenses]
     
     category_emoji = get_category_emoji(category)
-    date_range = get_salary_month_display(target_year, target_month)
+    date_range = get_month_display(target_year, target_month)
     
     message = f"""{category_emoji} *{category.upper()}*
 
@@ -328,14 +344,14 @@ Không có chi tiêu nào."""
 
 async def _show_all_categories_expenses(update: Update, user_id: int):
     """Show overview - MUCH more concise"""
-    target_month, target_year = get_current_salary_month()
+    target_month, target_year = get_current_month()
     month_start, month_end = get_month_date_range(target_year, target_month)
     
     expenses = db.get_monthly_expenses(user_id, month_start)
     
     if not expenses.data:
-        date_range = get_salary_month_display(target_year, target_month)
-        message = f"""📝 Tháng lương {target_month}/{target_year}
+        date_range = get_month_display(target_year, target_month)
+        message = f"""📋 Tháng {target_month}/{target_year}
 📅 {date_range}
 
 Chưa có chi tiêu nào."""
@@ -396,8 +412,21 @@ Chưa có chi tiêu nào."""
     for category, category_total in sorted_categories:
         category_emoji = get_category_emoji(category)
         
+        # Build budget info for this category
+        budget_text = ""
+        if category in remaining_budget:
+            budget_data = remaining_budget[category]
+            budget_amount = budget_data["budget"]
+            spent_amount = budget_data["spent"]
+            remaining = budget_data["remaining"]
+            
+            if remaining >= 0:
+                budget_text = f"\n  💰 Budget: `{format_currency(budget_amount)}` | Dùng: `{format_currency(spent_amount)}` | Còn: `{format_currency(remaining)}`"
+            else:
+                budget_text = f"\n  💰 Budget: `{format_currency(budget_amount)}` | Dùng: `{format_currency(spent_amount)}` | ⚠️ Vượt: `{format_currency(abs(remaining))}`"
+        
         # Category header on its own line
-        header = f"{category_emoji} *{category}* `{format_currency(category_total)}`"
+        header = f"{category_emoji} *{category}* `{format_currency(category_total)}`{budget_text}"
         
         # Show only top 3 items
         items = sorted(expenses_by_category[category], key=lambda x: x["date"], reverse=True)[:3]
@@ -431,9 +460,18 @@ Chưa có chi tiêu nào."""
         else:
             wishlist_info = f"\n🔒 Thiếu Level 1: `{format_currency(abs(after_level1))}`"
     
-    date_range = get_salary_month_display(target_year, target_month)
+    # Budget summary - BRIEF
+    budget_info = ""
+    if total_budget > 0:
+        budget_remaining = total_budget - total_month
+        if budget_remaining >= 0:
+            budget_info = f"\n💰 Budget còn: `{format_currency(budget_remaining)}`"
+        else:
+            budget_info = f"\n⚠️ Vượt budget: `{format_currency(abs(budget_remaining))}`"
     
-    message = f"""📝 *THÁNG LƯƠNG {target_month}/{target_year}*
+    date_range = get_month_display(target_year, target_month)
+    
+    message = f"""📋 *THÁNG {target_month}/{target_year}*
 📅 {date_range}
 
 {chr(10).join(categories_content)}
@@ -441,7 +479,7 @@ Chưa có chi tiêu nào."""
 💰 *TỔNG: {format_currency(total_month)}*
 
 💵 Thu: `{format_currency(total_income)}`
-📈 Tiết kiệm: `{format_currency(net_savings)}`{wishlist_info}
+📈 Tiết kiệm: `{format_currency(net_savings)}`{wishlist_info}{budget_info}
 
 💳 Tài khoản tiêu dùng: `{format_currency(spending_total)}`
 💰 Tiết kiệm: `{format_currency(account_balances.get('saving', 0))}`"""

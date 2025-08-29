@@ -2,7 +2,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from config import ALLOWED_USERS
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 def is_authorized(user_id: int) -> bool:
     """Check if user is authorized"""
@@ -37,7 +37,7 @@ async def send_formatted_message(update: Update, message: str, parse_mode: Parse
 async def check_authorization(update: Update) -> bool:
     """Check authorization and send error if needed"""
     if not is_authorized(update.effective_user.id):
-        await update.message.reply_text("❌ Sorry, you're not authorized to use this bot.")
+        await update.message.reply_text("⛔ Sorry, you're not authorized to use this bot.")
         return False
     return True
 
@@ -46,7 +46,7 @@ def safe_int_conversion(value: str) -> tuple[bool, int, str]:
     try:
         return True, int(value), ""
     except ValueError:
-        return False, 0, "❌ Vui lòng nhập số hợp lệ"
+        return False, 0, "⛔ Vui lòng nhập số hợp lệ"
 
 def safe_parse_amount(amount_str: str) -> tuple[bool, float, str]:
     """Safely parse amount with error handling"""
@@ -54,7 +54,7 @@ def safe_parse_amount(amount_str: str) -> tuple[bool, float, str]:
         amount = parse_amount(amount_str)
         return True, amount, ""
     except ValueError:
-        return False, 0.0, "❌ Số tiền không hợp lệ. Ví dụ: 50k, 1.5m, 3tr"
+        return False, 0.0, "⛔ Số tiền không hợp lệ. Ví dụ: 50k, 1.5m, 3tr"
 
 def split_long_message(message: str, max_length: int = 4000) -> list[str]:
     """Split long messages into chunks"""
@@ -81,7 +81,7 @@ def split_long_message(message: str, max_length: int = 4000) -> list[str]:
     
     return chunks
 
-async def send_long_message(update: Update, message: str, continuation_prefix: str = "📝 *Tiếp tục...*\n\n"):
+async def send_long_message(update: Update, message: str, continuation_prefix: str = "📄 *Tiếp tục...*\n\n"):
     """Send long message, splitting if necessary"""
     chunks = split_long_message(message)
     
@@ -92,78 +92,55 @@ async def send_long_message(update: Update, message: str, continuation_prefix: s
             continuation = continuation_prefix + chunk
             await send_formatted_message(update, continuation)
 
-def get_current_salary_month() -> tuple[int, int]:
-    """Get current salary month and year based on today's date
+def get_current_month() -> tuple[int, int]:
+    """Get current calendar month and year
     
     Returns:
-        tuple[int, int]: (salary_month, salary_year)
-        
-    Logic:
-        - If today >= 26th: current calendar month is the salary month
-        - If today < 26th: previous calendar month is the salary month
+        tuple[int, int]: (month, year)
     """
     today = datetime.now()
-    
-    if today.day >= 26:
-        # We're in the salary month of current calendar month
-        salary_month = today.month
-        salary_year = today.year
-    else:
-        # We're in the salary month of previous calendar month
-        if today.month == 1:
-            salary_month = 12
-            salary_year = today.year - 1
-        else:
-            salary_month = today.month - 1
-            salary_year = today.year
-    
-    return salary_month, salary_year
+    return today.month, today.year
 
 def get_month_date_range(year: int, month: int) -> tuple[date, date]:
-    """Get start and end dates for a salary month (26th to 25th)
+    """Get start and end dates for a calendar month (1st to last day)
     
     Args:
-        year: The year of the salary month
-        month: The salary month number (1-12)
+        year: The year 
+        month: The month number (1-12)
         
     Returns:
         tuple: (start_date, end_date) where:
-        - start_date: 26th of previous calendar month
-        - end_date: 25th of current calendar month
+        - start_date: 1st of the month
+        - end_date: Last day of the month
         
     Example:
-        get_month_date_range(2025, 8) returns (2025-07-26, 2025-08-25)
+        get_month_date_range(2025, 8) returns (2025-08-01, 2025-08-31)
     """
-    # Start date: 26th of previous calendar month
-    if month == 1:
-        start_month = 12
-        start_year = year - 1
+    start_date = date(year, month, 1)
+    
+    # Calculate last day of month
+    if month == 12:
+        end_date = date(year + 1, 1, 1) - timedelta(days=1)
     else:
-        start_month = month - 1
-        start_year = year
-    
-    start_date = date(start_year, start_month, 26)
-    
-    # End date: 25th of current calendar month
-    end_date = date(year, month, 25)
+        end_date = date(year, month + 1, 1) - timedelta(days=1)
     
     return start_date, end_date
 
-def get_salary_month_display(year: int, month: int) -> str:
-    """Get display string for salary month range
+def get_month_display(year: int, month: int) -> str:
+    """Get display string for calendar month
     
     Args:
-        year: The year of the salary month
-        month: The salary month number (1-12)
+        year: The year
+        month: The month number (1-12)
         
     Returns:
-        str: Display string like "26/7-25/8/2025"
+        str: Display string like "1/8-31/8/2025"
     """
     start_date, end_date = get_month_date_range(year, month)
     return f"{start_date.day}/{start_date.month}-{end_date.day}/{end_date.month}/{year}"
 
 def parse_date_argument(date_str: str) -> tuple[bool, int, int, str]:
-    """Parse date argument in format MM/YYYY for salary months
+    """Parse date argument in format MM/YYYY for calendar months
     
     Args:
         date_str: Date string in format MM/YYYY
@@ -173,24 +150,24 @@ def parse_date_argument(date_str: str) -> tuple[bool, int, int, str]:
     """
     try:
         if '/' not in date_str:
-            return False, 0, 0, "❌ Format: /summary 8/2025 (tháng lương 8 = 26/7-25/8/2025)"
+            return False, 0, 0, "⛔ Format: /summary 8/2025 (tháng 8 = 1/8-31/8/2025)"
         
         month_str, year_str = date_str.split('/')
         month = int(month_str)
         year = int(year_str)
         
         if month < 1 or month > 12:
-            return False, 0, 0, "❌ Tháng phải từ 1-12"
+            return False, 0, 0, "⛔ Tháng phải từ 1-12"
         
         return True, month, year, ""
         
     except ValueError:
-        return False, 0, 0, "❌ Format: /summary 8/2025 (tháng lương 8 = 26/7-25/8/2025)"
+        return False, 0, 0, "⛔ Format: /summary 8/2025 (tháng 8 = 1/8-31/8/2025)"
 
-def is_salary_month_start_today() -> bool:
-    """Check if today is the 26th (start of new salary month)
+def is_month_start_today() -> bool:
+    """Check if today is the 1st (start of new month)
     
     Returns:
-        bool: True if today is 26th of any month
+        bool: True if today is 1st of any month
     """
-    return datetime.now().day == 26
+    return datetime.now().day == 1
