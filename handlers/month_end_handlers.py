@@ -6,27 +6,27 @@ import logging
 from database import db
 from utils import (
     check_authorization, send_formatted_message, format_currency,
-    get_current_salary_month, get_month_date_range, get_salary_month_display  # NEW: salary cycle functions
+    get_current_month, get_month_date_range, get_month_display  # Updated function names
 )
 from config import ACCOUNT_DESCRIPTIONS
 
 async def endmonth_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Manual month-end processing: /endmonth - now uses salary cycle"""
+    """Manual month-end processing: /endmonth - now uses calendar cycle"""
     if not await check_authorization(update):
         return
     
     user_id = update.effective_user.id
     
-    # Get current salary month instead of calendar month
-    current_salary_month, current_salary_year = get_current_salary_month()
+    # Get current calendar month instead of salary month
+    current_month, current_year = get_current_month()
     
-    # Check if salary month is already closed
-    existing_closure = db.check_monthly_closure(user_id, current_salary_year, current_salary_month)
+    # Check if calendar month is already closed
+    existing_closure = db.check_monthly_closure(user_id, current_year, current_month)
     if existing_closure.data:
         closure_date = existing_closure.data[0]["created_at"][:10]
-        date_range = get_salary_month_display(current_salary_year, current_salary_month)
+        date_range = get_month_display(current_year, current_month)
         await send_formatted_message(update, 
-            f"❌ *THÁNG LƯƠNG {current_salary_month}/{current_salary_year} ĐÃ ĐÓNG!*\n\n"
+            f"⛔ *THÁNG {current_month}/{current_year} ĐÃ ĐÓNG!*\n\n"
             f"📅 *Khoảng thời gian*: {date_range}\n"
             f"📅 *Ngày đóng*: {closure_date}\n"
             f"💡 *Xem lịch sử*: `/monthhistory`")
@@ -35,7 +35,7 @@ async def endmonth_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Get current account balances
     accounts_data = db.get_accounts(user_id)
     if not accounts_data.data:
-        await send_formatted_message(update, "❌ Không tìm thấy tài khoản. Vui lòng thử lại.")
+        await send_formatted_message(update, "⛔ Không tìm thấy tài khoản. Vui lòng thử lại.")
         return
     
     # Build accounts dict
@@ -54,8 +54,8 @@ async def endmonth_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_transfer = excess_need + excess_fun
     new_saving_balance = saving_balance + total_transfer
     
-    # Get monthly financial summary for salary month
-    month_start, month_end = get_month_date_range(current_salary_year, current_salary_month)
+    # Get monthly financial summary for calendar month
+    month_start, month_end = get_month_date_range(current_year, current_month)
     monthly_expenses = db.get_monthly_expenses(user_id, month_start)
     monthly_income = db.get_monthly_income(user_id, month_start)
     
@@ -64,9 +64,9 @@ async def endmonth_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     net_savings = total_income - total_expenses
     
     # Show pre-processing summary and ask for confirmation
-    date_range = get_salary_month_display(current_salary_year, current_salary_month)
+    date_range = get_month_display(current_year, current_month)
     
-    summary_message = f"""📊 *TỔNG KẾT THÁNG LƯƠNG {current_salary_month}/{current_salary_year}*
+    summary_message = f"""📊 *TỔNG KẾT THÁNG {current_month}/{current_year}*
 📅 *({date_range})*
 
 💰 *THU CHI THÁNG:*
@@ -75,7 +75,7 @@ async def endmonth_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📈 Tiết kiệm ròng: `{format_currency(net_savings)}`
 
 💳 *TÀI KHOẢN HIỆN TẠI:*
-🍚 Thiết yếu: `{format_currency(need_balance)}`
+🏠 Thiết yếu: `{format_currency(need_balance)}`
 🎮 Giải trí: `{format_currency(fun_balance)}`
 💰 Tiết kiệm: `{format_currency(saving_balance)}`
 📈 Đầu tư: `{format_currency(invest_balance)}`
@@ -89,14 +89,14 @@ async def endmonth_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ⚠️ *CẢNH BÁO: Không thể hoàn tác!*
 
-💡 *Xác nhận đóng tháng lương*: Trả lời `CONFIRM` để xác nhận"""
+💡 *Xác nhận đóng tháng*: Trả lời `CONFIRM` để xác nhận"""
     
     await send_formatted_message(update, summary_message)
     
     # Store pending closure data in context for confirmation
     context.user_data['pending_month_end'] = {
-        'month': current_salary_month,
-        'year': current_salary_year,
+        'month': current_month,
+        'year': current_year,
         'need_balance': need_balance,
         'fun_balance': fun_balance,
         'saving_balance': saving_balance,
@@ -128,8 +128,8 @@ async def handle_month_end_confirmation(update: Update, context: ContextTypes.DE
         # Any other input cancels the month-end
         context.user_data.pop('pending_month_end', None)
         await send_formatted_message(update, 
-            "❌ *ĐÃ HỦY ĐÓNG THÁNG LƯƠNG*\n\n"
-            "💡 Dùng `/endmonth` khi bạn sẵn sàng đóng tháng lương")
+            "⛔ *ĐÃ HỦY ĐÓNG THÁNG*\n\n"
+            "💡 Dùng `/endmonth` khi bạn sẵn sàng đóng tháng")
         return True
     
     try:
@@ -143,13 +143,13 @@ async def handle_month_end_confirmation(update: Update, context: ContextTypes.DE
             # Send success message
             await send_formatted_message(update, result['message'])
         else:
-            await send_formatted_message(update, f"❌ Lỗi khi đóng tháng lương: {result['error']}")
+            await send_formatted_message(update, f"⛔ Lỗi khi đóng tháng: {result['error']}")
         
         return True
         
     except Exception as e:
         logging.error(f"Month-end processing error: {e}")
-        await send_formatted_message(update, "❌ Lỗi hệ thống khi đóng tháng lương. Vui lòng thử lại.")
+        await send_formatted_message(update, "⛔ Lỗi hệ thống khi đóng tháng. Vui lòng thử lại.")
         return True
 
 async def _execute_month_end_processing(user_id: int, pending_data: dict):
@@ -207,10 +207,10 @@ async def _execute_month_end_processing(user_id: int, pending_data: dict):
         final_invest_balance = db.get_account_balance(user_id, "invest")
         final_construction_balance = db.get_account_balance(user_id, "construction")
         
-        # 4. Build success message with salary month info
-        date_range = get_salary_month_display(year, month)
+        # 4. Build success message with calendar month info
+        date_range = get_month_display(year, month)
         
-        success_message = f"""✅ *ĐÃ ĐÓNG THÁNG LƯƠNG {month}/{year} THÀNH CÔNG!*
+        success_message = f"""✅ *ĐÃ ĐÓNG THÁNG {month}/{year} THÀNH CÔNG!*
 📅 *({date_range})*
 
 🔄 *CÁC THAO TÁC ĐÃ THỰC HIỆN:*
@@ -219,19 +219,19 @@ async def _execute_month_end_processing(user_id: int, pending_data: dict):
 • Đặt lại Thiết yếu và Giải trí về `0đ`
 
 💳 *TÀI KHOẢN SAU KHI ĐÓNG:*
-🍚 Thiết yếu: `0đ`
+🏠 Thiết yếu: `0đ`
 🎮 Giải trí: `0đ`
 💰 Tiết kiệm: `{format_currency(final_saving_balance)}`
 📈 Đầu tư: `{format_currency(final_invest_balance)}`
 🏗️ Xây dựng: `{format_currency(final_construction_balance)}`
 
-📊 *TỔNG KẾT THÁNG LƯƠNG:*
+📊 *TỔNG KẾT THÁNG:*
 💵 Thu nhập: `{format_currency(pending_data['total_income'])}`
 💸 Chi tiêu: `{format_currency(pending_data['total_expenses'])}`
 📈 Tiết kiệm ròng: `{format_currency(pending_data['net_savings'])}`
 💰 Chuyển vào tiết kiệm: `{format_currency(total_transfer)}`
 
-🎉 *Tháng lương mới bắt đầu! Chúc bạn quản lý tài chính tốt!*
+🎉 *Tháng mới bắt đầu! Chúc bạn quản lý tài chính tốt!*
 
 💡 *Xem lịch sử*: `/monthhistory`"""
         
@@ -242,7 +242,7 @@ async def _execute_month_end_processing(user_id: int, pending_data: dict):
         return {'success': False, 'error': str(e)}
 
 async def monthhistory_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """View past month closures: /monthhistory - now shows salary months"""
+    """View past month closures: /monthhistory - now shows calendar months"""
     if not await check_authorization(update):
         return
     
@@ -253,12 +253,12 @@ async def monthhistory_command(update: Update, context: ContextTypes.DEFAULT_TYP
     
     if not closures_data.data:
         await send_formatted_message(update, 
-            "📅 *CHƯA CÓ LỊCH SỬ ĐÓNG THÁNG LƯƠNG*\n\n"
-            "💡 Dùng `/endmonth` để đóng tháng lương hiện tại")
+            "📅 *CHƯA CÓ LỊCH SỬ ĐÓNG THÁNG*\n\n"
+            "💡 Dùng `/endmonth` để đóng tháng hiện tại")
         return
     
     # Build history message
-    message = "📅 *LỊCH SỬ TIẾT KIỆM THÁNG LƯƠNG*\n\n"
+    message = "📅 *LỊCH SỬ TIẾT KIỆM THÁNG*\n\n"
     
     for closure in closures_data.data:
         month = closure["month"]
@@ -274,10 +274,10 @@ async def monthhistory_command(update: Update, context: ContextTypes.DEFAULT_TYP
         saving_before = float(closure.get("saving_balance_before", 0))
         saving_after = saving_before + transferred
         
-        # Get salary month display range
-        date_range = get_salary_month_display(year, month)
+        # Get calendar month display range
+        date_range = get_month_display(year, month)
         
-        message += f"📊 *THÁNG LƯƠNG {month}/{year}* _(đóng {created_date})_\n"
+        message += f"📊 *THÁNG {month}/{year}* _(đóng {created_date})_\n"
         message += f"📅 _{date_range}_\n"
         message += f"💵 Thu: `{format_currency(total_income)}` | Chi: `{format_currency(total_expenses)}`\n"
         message += f"📈 Tiết kiệm ròng: `{format_currency(net_savings)}`\n"
@@ -285,6 +285,6 @@ async def monthhistory_command(update: Update, context: ContextTypes.DEFAULT_TYP
             message += f"💰 Chuyển vào tiết kiệm: `{format_currency(transferred)}`\n"
         message += f"💳 Tiết kiệm cuối tháng: `{format_currency(saving_after)}`\n\n"
     
-    message += "💡 _Chỉ hiển thị 6 tháng lương gần nhất_"
+    message += "💡 _Chỉ hiển thị 6 tháng gần nhất_"
     
     await send_formatted_message(update, message)

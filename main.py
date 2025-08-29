@@ -63,19 +63,20 @@ def main():
         # Message handler (must be last)
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
         
-        # Simple startup message
+        # Simple startup message - updated for calendar months
         print("🤖 Starting Personal Finance Bot...")
-        print("🔄 Enhanced /list command with date support enabled!")
+        print("📅 Using standard calendar months (1st-31st)")
+        print("📄 Enhanced /list command with date support enabled!")
         print("🚀 Bot is running!")
         
         application.run_polling()
         
     except Conflict:
-        print("❌ Bot conflict: Another instance is running!")
+        print("⛔ Bot conflict: Another instance is running!")
         sys.exit(1)
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"⛔ Error: {e}")
         time.sleep(30)
         main()
 

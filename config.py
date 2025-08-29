@@ -22,11 +22,11 @@ def get_income_emoji(income_type):
     return INCOME_TYPES.get(income_type, {}).get("emoji", "💰")
 
 # =============================================================================
-# SIMPLE MESSAGE TEMPLATES WITH SALARY CYCLE SUPPORT
+# SIMPLE MESSAGE TEMPLATES FOR CALENDAR MONTHS
 # =============================================================================
 
 MESSAGE_TEMPLATES = {
-    "list_overview": """📝 *THÁNG LƯƠNG {month}/{year}*
+    "list_overview": """📋 *THÁNG {month}/{year}*
 📅 {date_range}
 
 {categories_content}
@@ -101,7 +101,7 @@ def format_currency(amount: float) -> str:
     return f"{amount:,.0f}đ"
 
 # =============================================================================
-# BOT MESSAGES WITH SALARY CYCLE EXPLANATIONS
+# BOT MESSAGES FOR CALENDAR MONTHS
 # =============================================================================
 
 BOT_MESSAGES = {
@@ -117,7 +117,7 @@ BOT_MESSAGES = {
 📊 `/list 15/08/2025` - Chi tiêu ngày
 📈 `/summary` - Báo cáo tháng
 💰 `/budget ăn uống 1.5m` - Đặt budget
-🛍️ `/wishlist` - Wishlist
+🛏️ `/wishlist` - Wishlist
 ❓ `/help` - Hướng dẫn""",
     
     "help": """💡 *HƯỚNG DẪN*
@@ -140,14 +140,14 @@ BOT_MESSAGES = {
 • `/account` - Xem tài khoản
 • `/allocation` - Phân bổ thu nhập
 
-*🛍️ WISHLIST:*
+*🛏️ WISHLIST:*
 • `/wishadd iPhone 25m prio:1` - Thêm
 • `/wishlist` - Xem + phân tích
 • `/wishremove iPhone` - Xóa
 
-*📅 THÁNG LƯƠNG:* 26-25 (T8 = 26/7-25/8)""",
+*📅 THÁNG:* 1-31 (T8 = 1/8-31/8)""",
     
-    "no_expenses_this_month": """📝 Tháng lương {month}/{year}
+    "no_expenses_this_month": """📋 Tháng {month}/{year}
 
 Chưa có chi tiêu nào.""",
     
@@ -249,7 +249,7 @@ def get_all_account_types():
     return list(ACCOUNT_TYPES.keys())
 
 ACCOUNT_DESCRIPTIONS = {
-    "need": {"emoji": "🍚", "name": "Thiết yếu", "description": "Ăn uống, di chuyển, hóa đơn, mèo"},
+    "need": {"emoji": "🏠", "name": "Thiết yếu", "description": "Ăn uống, di chuyển, hóa đơn, mèo"},
     "fun": {"emoji": "🎮", "name": "Giải trí", "description": "Cá nhân, linh tinh"},
     "saving": {"emoji": "💰", "name": "Tiết kiệm", "description": "Tiết kiệm tích lũy"},
     "invest": {"emoji": "📈", "name": "Đầu tư", "description": "Đầu tư dài hạn"},
@@ -311,25 +311,25 @@ def get_template(key, **kwargs):
     return template
 
 # =============================================================================
-# STARTUP AND ERROR MESSAGES WITH SALARY CYCLE INFO
+# STARTUP AND ERROR MESSAGES FOR CALENDAR MONTHS
 # =============================================================================
 
 STARTUP_MESSAGES = {
     "starting": "🤖 Simplified Personal Finance Bot is starting...",
     "categories": "📂 Categories: {categories}",
     "notation": "💰 K/M/TR notation: 50k=50,000đ, 1.5m=1,500,000đ, 3tr=3,000,000đ",
-    "wishlist": "📝 Wishlist with 5 levels: 1=Untouchable, 2=Next Sale, 3=Want Soon, 4=Want Eventually, 5=Nice to Have",
-    "subscriptions": "📅 Subscription feature: auto-added on 26th of each month (salary cycle)",
+    "wishlist": "📋 Wishlist with 5 levels: 1=Untouchable, 2=Next Sale, 3=Want Soon, 4=Want Eventually, 5=Nice to Have",
+    "subscriptions": "📅 Subscription feature: auto-added on 1st of each month",
     "budget": "💰 Budget planning: set spending limits per category",
-    "salary_cycle": "📅 Salary cycle: Each month runs 26th-25th (Month 8 = July 26 - Aug 25)",
-    "summary": "📊 Summary with salary months: /summary or /summary 8/2025 (26/7-25/8/2025)",
-    "list_feature": "📝 Enhanced /list command: shows wishlist analysis for salary month"
+    "calendar_month": "📅 Calendar months: Each month runs 1st-last day (Month 8 = Aug 1 - Aug 31)",
+    "summary": "📊 Summary with calendar months: /summary or /summary 8/2025 (1/8-31/8/2025)",
+    "list_feature": "📋 Enhanced /list command: shows wishlist analysis for calendar month"
 }
 
 ERROR_MESSAGES = {
-    "bot_conflict": "❌ Bot conflict error: Another bot instance is running!",
+    "bot_conflict": "⛔ Bot conflict error: Another bot instance is running!",
     "solutions": "🔧 Solutions:\n1. Stop other bot instances\n2. Wait 30 seconds and try again\n3. Check if bot is running elsewhere",
-    "unexpected": "❌ Unexpected error: {error}",
+    "unexpected": "⛔ Unexpected error: {error}",
     "restarting": "🔧 Restarting in 30 seconds..."
 }
 
