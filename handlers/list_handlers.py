@@ -197,15 +197,31 @@ Không có chi tiêu nào."""
     # Calculate total spent
     total_spent = sum(float(expense["amount"]) for expense in expenses.data)
     
-    # Budget status (concise)
+    # Budget status (detailed)
     budget_info = ""
     if category in remaining_budget:
         budget_data = remaining_budget[category]
+        budget_amount = budget_data["budget"]
+        spent_amount = budget_data["spent"]
         remaining = budget_data["remaining"]
+        
+        # Calculate percentage used
+        percentage_used = (spent_amount / budget_amount * 100) if budget_amount > 0 else 0
+        
         if remaining >= 0:
-            budget_info = f"\n💰 Budget còn: `{format_currency(remaining)}`"
+            budget_info = f"""
+💰 *BUDGET THÁNG:*
+  • Tổng budget: `{format_currency(budget_amount)}`
+  • Đã dùng: `{format_currency(spent_amount)}` ({percentage_used:.1f}%)
+  • Còn lại: `{format_currency(remaining)}`"""
         else:
-            budget_info = f"\n⚠️ Vượt budget: `{format_currency(abs(remaining))}`"
+            budget_info = f"""
+💰 *BUDGET THÁNG:*
+  • Tổng budget: `{format_currency(budget_amount)}`
+  • Đã dùng: `{format_currency(spent_amount)}` ({percentage_used:.1f}%)
+  • ⚠️ Vượt budget: `{format_currency(abs(remaining))}`"""
+    else:
+        budget_info = f"\n💡 *Chưa đặt budget cho {category}*\nDùng `/budget {category} [số tiền]` để đặt budget"
     
     # Sort expenses by date (newest first)
     sorted_expenses = sorted(expenses.data, key=lambda x: x["date"], reverse=True)
@@ -396,8 +412,21 @@ Chưa có chi tiêu nào."""
     for category, category_total in sorted_categories:
         category_emoji = get_category_emoji(category)
         
+        # Build budget info for this category
+        budget_text = ""
+        if category in remaining_budget:
+            budget_data = remaining_budget[category]
+            budget_amount = budget_data["budget"]
+            spent_amount = budget_data["spent"]
+            remaining = budget_data["remaining"]
+            
+            if remaining >= 0:
+                budget_text = f"\n  💰 Budget: `{format_currency(budget_amount)}` | Dùng: `{format_currency(spent_amount)}` | Còn: `{format_currency(remaining)}`"
+            else:
+                budget_text = f"\n  💰 Budget: `{format_currency(budget_amount)}` | Dùng: `{format_currency(spent_amount)}` | ⚠️ Vượt: `{format_currency(abs(remaining))}`"
+        
         # Category header on its own line
-        header = f"{category_emoji} *{category}* `{format_currency(category_total)}`"
+        header = f"{category_emoji} *{category}* `{format_currency(category_total)}`{budget_text}"
         
         # Show only top 3 items
         items = sorted(expenses_by_category[category], key=lambda x: x["date"], reverse=True)[:3]
@@ -431,6 +460,15 @@ Chưa có chi tiêu nào."""
         else:
             wishlist_info = f"\n🔒 Thiếu Level 1: `{format_currency(abs(after_level1))}`"
     
+    # Budget summary - BRIEF
+    budget_info = ""
+    if total_budget > 0:
+        budget_remaining = total_budget - total_month
+        if budget_remaining >= 0:
+            budget_info = f"\n💰 Budget còn: `{format_currency(budget_remaining)}`"
+        else:
+            budget_info = f"\n⚠️ Vượt budget: `{format_currency(abs(budget_remaining))}`"
+    
     date_range = get_month_display(target_year, target_month)
     
     message = f"""📋 *THÁNG {target_month}/{target_year}*
@@ -441,7 +479,7 @@ Chưa có chi tiêu nào."""
 💰 *TỔNG: {format_currency(total_month)}*
 
 💵 Thu: `{format_currency(total_income)}`
-📈 Tiết kiệm: `{format_currency(net_savings)}`{wishlist_info}
+📈 Tiết kiệm: `{format_currency(net_savings)}`{wishlist_info}{budget_info}
 
 💳 Tài khoản tiêu dùng: `{format_currency(spending_total)}`
 💰 Tiết kiệm: `{format_currency(account_balances.get('saving', 0))}`"""
