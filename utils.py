@@ -9,8 +9,8 @@ def is_authorized(user_id: int) -> bool:
     return user_id in ALLOWED_USERS
 
 def format_currency(amount: float) -> str:
-    """Format currency in Vietnamese style"""
-    return f"{amount:,.0f}đ"
+    """Format currency in Vietnamese style - SINGLE SOURCE OF TRUTH"""
+    return f"{amount:,.0f}₫"
 
 def parse_amount(amount_str: str) -> float:
     """Parse amount with k/m/tr notation"""
@@ -42,7 +42,7 @@ async def check_authorization(update: Update) -> bool:
     return True
 
 def safe_int_conversion(value: str) -> tuple[bool, int, str]:
-    """Safely convert string to integer"""
+    """Safely convert string to integer - ADDED BACK FOR COMPATIBILITY"""
     try:
         return True, int(value), ""
     except ValueError:
@@ -56,34 +56,31 @@ def safe_parse_amount(amount_str: str) -> tuple[bool, float, str]:
     except ValueError:
         return False, 0.0, "⛔ Số tiền không hợp lệ. Ví dụ: 50k, 1.5m, 3tr"
 
-def split_long_message(message: str, max_length: int = 4000) -> list[str]:
-    """Split long messages into chunks"""
-    if len(message) <= max_length:
-        return [message]
-    
-    chunks = []
-    current_chunk = ""
-    lines = message.split('\n')
-    
-    for line in lines:
-        if len(current_chunk + line + '\n') > max_length:
-            if current_chunk:
-                chunks.append(current_chunk.strip())
-                current_chunk = line + '\n'
-            else:
-                chunks.append(line[:max_length].strip())
-                current_chunk = line[max_length:] + '\n'
-        else:
-            current_chunk += line + '\n'
-    
-    if current_chunk.strip():
-        chunks.append(current_chunk.strip())
-    
-    return chunks
-
 async def send_long_message(update: Update, message: str, continuation_prefix: str = "📄 *Tiếp tục...*\n\n"):
-    """Send long message, splitting if necessary"""
-    chunks = split_long_message(message)
+    """Send long message, splitting if necessary - with inlined split logic"""
+    max_length = 4000
+    
+    if len(message) <= max_length:
+        chunks = [message]
+    else:
+        # Inline split logic (previously split_long_message function)
+        chunks = []
+        current_chunk = ""
+        lines = message.split('\n')
+        
+        for line in lines:
+            if len(current_chunk + line + '\n') > max_length:
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                    current_chunk = line + '\n'
+                else:
+                    chunks.append(line[:max_length].strip())
+                    current_chunk = line[max_length:] + '\n'
+            else:
+                current_chunk += line + '\n'
+        
+        if current_chunk.strip():
+            chunks.append(current_chunk.strip())
     
     for i, chunk in enumerate(chunks):
         if i == 0:
@@ -163,11 +160,3 @@ def parse_date_argument(date_str: str) -> tuple[bool, int, int, str]:
         
     except ValueError:
         return False, 0, 0, "⛔ Format: /summary 8/2025 (tháng 8 = 1/8-31/8/2025)"
-
-def is_month_start_today() -> bool:
-    """Check if today is the 1st (start of new month)
-    
-    Returns:
-        bool: True if today is 1st of any month
-    """
-    return datetime.now().day == 1

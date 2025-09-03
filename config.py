@@ -13,7 +13,7 @@ DEFAULT_SUBSCRIPTION_CATEGORY = "cá nhân"
 
 # Income types - simplified
 INCOME_TYPES = {
-    "construction": {"emoji": "🏗️", "description": "Construction income"},
+    "construction": {"emoji": "🗯️", "description": "Construction income"},
     "salary": {"emoji": "💵", "description": "Monthly salary"},
     "random": {"emoji": "🎉", "description": "Additional income"}
 }
@@ -44,7 +44,7 @@ MESSAGE_TEMPLATES = {
 💰 Chi: `{total_expenses}` 
 📈 Tiết kiệm: `{net_savings}`
 
-🏗️ Xây dựng: Thu `{construction_income}` - Chi `{construction_expense}` = `{construction_net}`
+🗯️ Xây dựng: Thu `{construction_income}` - Chi `{construction_expense}` = `{construction_net}`
 💰 Khác: Thu `{general_income}` - Chi `{general_expense}` = `{general_net}`{budget_info}
 
 📊 {expense_count} chi tiêu, {income_count} thu nhập""",
@@ -53,7 +53,6 @@ MESSAGE_TEMPLATES = {
 
 💰 {amount}""",
 
-    # ADD THIS MISSING TEMPLATE:
     "expense_item": """{date} {description} `{amount}`""",
     
     "category_header": """{emoji} *{category}* - `{total}`{budget_info}""",
@@ -67,6 +66,9 @@ MESSAGE_TEMPLATES = {
 
 # Simple formatting functions
 def format_budget_info(remaining_budget, category):
+    """Format budget info for category - uses utils.format_currency"""
+    from utils import format_currency
+    
     if category not in remaining_budget:
         return ""
     
@@ -79,8 +81,9 @@ def format_budget_info(remaining_budget, category):
         return f" _⚠️ (vượt: {format_currency(abs(remaining))})_"
 
 def format_expense_item(expense):
-    """Format expense item - concise version"""
+    """Format expense item - concise version - uses utils.format_currency"""
     from datetime import datetime
+    from utils import format_currency
     
     amount = float(expense["amount"])
     description = expense["description"]
@@ -94,11 +97,6 @@ def format_expense_item(expense):
         description=description,
         amount=format_currency(amount)
     )
-
-# Currency formatting - single source of truth
-def format_currency(amount: float) -> str:
-    """Format currency in Vietnamese style"""
-    return f"{amount:,.0f}đ"
 
 # =============================================================================
 # BOT MESSAGES FOR CALENDAR MONTHS
@@ -164,8 +162,6 @@ Dùng `/editsaving 500k` để bắt đầu.""",
 VD: `50k cà phê`, `/help`"""
 }
 
-# ... rest of the file remains the same ...
-
 # =============================================================================
 # CATEGORIES - SIMPLIFIED
 # =============================================================================
@@ -176,7 +172,7 @@ CATEGORIES = {
     "hóa đơn": {"emoji": "📄", "keywords": ["bill", "điện", "nước", "internet"]},
     "cá nhân": {"emoji": "🎮", "keywords": ["entertainment", "shopping", "áo", "quần"]},
     "mèo": {"emoji": "🐾", "keywords": ["cat", "pet", "mèo", "cát mèo"]},
-    "công trình": {"emoji": "🏗️", "keywords": ["furniture", "sofa", "tủ lạnh", "giường"]},
+    "công trình": {"emoji": "🗯️", "keywords": ["furniture", "sofa", "tủ lạnh", "giường"]},
     "linh tinh": {"emoji": "🔧", "keywords": ["small items", "tools", "đèn nhỏ", "ly"]},
     "khác": {"emoji": "📂", "keywords": ["other", "misc"]}
 }
@@ -188,14 +184,6 @@ def get_category_emoji(category):
 
 def get_all_category_info():
     return "\n".join([f"• {cat} {get_category_emoji(cat)}" for cat in EXPENSE_CATEGORIES])
-
-def get_ai_categorization_rules():
-    """Generate simple AI categorization rules"""
-    rules = []
-    for category, info in CATEGORIES.items():
-        keywords = ", ".join(info["keywords"])
-        rules.append(f"- For {keywords}, use \"{category}\" category")
-    return "\n".join(rules)
 
 # =============================================================================
 # WISHLIST PRIORITIES - 5 LEVELS
@@ -233,7 +221,7 @@ ACCOUNT_TYPES = {
     "expense": {"emoji": "💸", "description": "Chi tiêu"},
     "saving": {"emoji": "💰", "description": "Tiết kiệm"},
     "invest": {"emoji": "📈", "description": "Đầu tư"},
-    "construction": {"emoji": "🏗️", "description": "Xây dựng"}
+    "construction": {"emoji": "🗯️", "description": "Xây dựng"}
 }
 
 def get_account_emoji(account_type):
@@ -253,7 +241,7 @@ ACCOUNT_DESCRIPTIONS = {
     "fun": {"emoji": "🎮", "name": "Giải trí", "description": "Cá nhân, linh tinh"},
     "saving": {"emoji": "💰", "name": "Tiết kiệm", "description": "Tiết kiệm tích lũy"},
     "invest": {"emoji": "📈", "name": "Đầu tư", "description": "Đầu tư dài hạn"},
-    "construction": {"emoji": "🏗️", "name": "Xây dựng", "description": "Thu chi xây dựng"}
+    "construction": {"emoji": "🗯️", "name": "Xây dựng", "description": "Thu chi xây dựng"}
 }
 
 def get_account_description_enhanced(account_type):
@@ -317,7 +305,7 @@ def get_template(key, **kwargs):
 STARTUP_MESSAGES = {
     "starting": "🤖 Simplified Personal Finance Bot is starting...",
     "categories": "📂 Categories: {categories}",
-    "notation": "💰 K/M/TR notation: 50k=50,000đ, 1.5m=1,500,000đ, 3tr=3,000,000đ",
+    "notation": "💰 K/M/TR notation: 50k=50,000₫, 1.5m=1,500,000₫, 3tr=3,000,000₫",
     "wishlist": "📋 Wishlist with 5 levels: 1=Untouchable, 2=Next Sale, 3=Want Soon, 4=Want Eventually, 5=Nice to Have",
     "subscriptions": "📅 Subscription feature: auto-added on 1st of each month",
     "budget": "💰 Budget planning: set spending limits per category",
@@ -332,10 +320,6 @@ ERROR_MESSAGES = {
     "unexpected": "⛔ Unexpected error: {error}",
     "restarting": "🔧 Restarting in 30 seconds..."
 }
-
-def get_category_list_display():
-    """Get category list for console display"""
-    return ", ".join(EXPENSE_CATEGORIES)
 
 def get_startup_message(key, **kwargs):
     """Get a startup message with optional formatting"""

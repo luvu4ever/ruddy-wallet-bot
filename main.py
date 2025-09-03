@@ -11,7 +11,7 @@ from handlers import (
     budget_command, budget_list_command, income_command,
     account_command, account_edit_command,
     allocation_command,
-    endmonth_command, monthhistory_command  # Month-end handlers
+    endmonth_command, monthhistory_command, balancehistory_command
 )
 
 import time
@@ -59,6 +59,7 @@ def main():
         # Month-end processing
         application.add_handler(CommandHandler("endmonth", endmonth_command))
         application.add_handler(CommandHandler("monthhistory", monthhistory_command))
+        application.add_handler(CommandHandler("balancehistory", balancehistory_command))
         
         # Message handler (must be last)
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))

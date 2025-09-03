@@ -76,7 +76,7 @@ async def _show_all_accounts_enhanced(update: Update, user_id: int):
     message += f"🛒 *Tiêu dùng* (Thiết yếu + Giải trí): `{format_currency(spending_accounts_total)}`\n"
     message += f"💰 *Tiết kiệm*: `{format_currency(account_balances['saving'])}`\n"
     message += f"📈 *Đầu tư*: `{format_currency(account_balances['invest'])}`\n"
-    message += f"🏗️ *Xây dựng*: `{format_currency(account_balances['construction'])}`\n"
+    message += f"🗯️ *Xây dựng*: `{format_currency(account_balances['construction'])}`\n"
     message += f"💎 *Tổng tài sản*: `{format_currency(total_balance)}`\n"
     
     message += f"\n💡 *XEM CHI TIẾT*: `/account need` hoặc `/account construction`"
@@ -89,7 +89,7 @@ async def _show_account_details(update: Update, user_id: int, account_type: str)
     # Validate account type
     valid_types = ["need", "fun", "saving", "invest", "construction"]
     if account_type not in valid_types:
-        await send_formatted_message(update, f"❌ Loại tài khoản không hợp lệ. Có sẵn: {', '.join(valid_types)}")
+        await send_formatted_message(update, f"⌘ Loại tài khoản không hợp lệ. Có sẵn: {', '.join(valid_types)}")
         return
     
     # Get account balance
@@ -143,7 +143,7 @@ async def _show_account_details(update: Update, user_id: int, account_type: str)
     await send_formatted_message(update, message)
 
 async def account_edit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Edit account balance: /accountedit expense 500k"""
+    """Edit account balance: /accountedit expense 500k - USES CONSOLIDATED DB FUNCTION"""
     if not await check_authorization(update):
         return
     
@@ -152,7 +152,7 @@ async def account_edit_command(update: Update, context: ContextTypes.DEFAULT_TYP
     
     if len(args) < 2:
         valid_types = ["need", "fun", "saving", "invest", "construction"]
-        await send_formatted_message(update, f"❌ Cách dùng: `/accountedit [tên tài khoản] [số tiền]`\n\n📋 *Tài khoản có sẵn:* {', '.join(valid_types)}")
+        await send_formatted_message(update, f"⌘ Cách dùng: `/accountedit [tên tài khoản] [số tiền]`\n\n📋 *Tài khoản có sẵn:* {', '.join(valid_types)}")
         return
     
     # Parse account type
@@ -167,13 +167,13 @@ async def account_edit_command(update: Update, context: ContextTypes.DEFAULT_TYP
             break
     
     if not matched_account:
-        await send_formatted_message(update, f"❌ Không tìm thấy tài khoản '{account_input}'\n\n📋 *Có sẵn:* {', '.join(valid_types)}")
+        await send_formatted_message(update, f"⌘ Không tìm thấy tài khoản '{account_input}'\n\n📋 *Có sẵn:* {', '.join(valid_types)}")
         return
     
     # Parse amount
     success, new_balance, _ = safe_parse_amount(args[1])
     if not success:
-        await send_formatted_message(update, "❌ Số tiền không hợp lệ. VD: `/accountedit need 500k`")
+        await send_formatted_message(update, "⌘ Số tiền không hợp lệ. VD: `/accountedit need 500k`")
         return
     
     # Get current balance for calculating the difference
@@ -181,9 +181,9 @@ async def account_edit_command(update: Update, context: ContextTypes.DEFAULT_TYP
     balance_change = new_balance - current_balance
     
     try:
-        # Update account using the safer method
-        result, final_balance = await _safe_update_account_balance(
-            user_id, matched_account, new_balance, "manual_adjustment",
+        # Update account using CONSOLIDATED database function
+        result, final_balance = db.update_account_balance(
+            user_id, matched_account, balance_change, "manual_adjustment",
             f"Manual adjustment to {format_currency(new_balance)}"
         )
         
@@ -203,53 +203,10 @@ async def account_edit_command(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as e:
         import logging
         logging.error(f"Account edit error: {e}")
-        await send_formatted_message(update, "❌ Lỗi khi cập nhật tài khoản. Vui lòng thử lại.")
-
-
-async def _safe_update_account_balance(user_id, account_type, new_balance, transaction_type, description):
-    """Safely update account balance with proper conflict handling"""
-    
-    # Get current account data
-    account_data = db.get_account_by_type(user_id, account_type)
-    
-    account_update = {
-        "user_id": user_id,
-        "account_type": account_type,
-        "current_balance": new_balance,
-        "last_updated": datetime.now().isoformat()
-    }
-    
-    try:
-        # Try upsert first
-        result = db.upsert_account(account_update)
-    except Exception as e:
-        # If upsert fails, try manual update/insert
-        if account_data.data:
-            # Update existing record
-            result = db.supabase.table("accounts").update({
-                "current_balance": new_balance,
-                "last_updated": datetime.now().isoformat()
-            }).eq("user_id", user_id).eq("account_type", account_type).execute()
-        else:
-            # Insert new record
-            result = db.supabase.table("accounts").insert(account_update).execute()
-    
-    # Log transaction
-    transaction_data = {
-        "user_id": user_id,
-        "account_type": account_type,
-        "transaction_type": transaction_type,
-        "amount": new_balance,  # Log the new balance for manual adjustments
-        "description": description
-    }
-    
-    db.insert_account_transaction(transaction_data)
-    
-    return result, new_balance
-
+        await send_formatted_message(update, "⌘ Lỗi khi cập nhật tài khoản. Vui lòng thử lại.")
 
 async def _initialize_all_accounts(user_id):
-    """Initialize all account types with 0 balance - safer version"""
+    """Initialize all account types with 0 balance - SINGLE SOURCE (removed duplicate)"""
     all_account_types = ["need", "fun", "saving", "invest", "construction"]
     
     for account_type in all_account_types:

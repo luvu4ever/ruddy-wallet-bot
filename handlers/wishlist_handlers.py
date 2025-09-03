@@ -4,8 +4,8 @@ import logging
 
 from database import db
 from utils import (
-    check_authorization, send_formatted_message, safe_int_conversion,
-    safe_parse_amount, format_currency
+    check_authorization, send_formatted_message,
+    safe_parse_amount, format_currency  # REMOVED safe_int_conversion
 )
 from config import get_priority_emoji, get_priority_name, get_priority_description, get_message
 
@@ -27,7 +27,7 @@ async def wishlist_add_command(update: Update, context: ContextTypes.DEFAULT_TYP
     args = context.args
     
     if not args:
-        await send_formatted_message(update, "❌ Cách dùng: /wishadd [tên] [giá] [prio:1-5]")
+        await send_formatted_message(update, "⌘ Cách dùng: /wishadd [tên] [giá] [prio:1-5]")
         return
     
     # Default values
@@ -39,7 +39,7 @@ async def wishlist_add_command(update: Update, context: ContextTypes.DEFAULT_TYP
     for arg in args:
         if arg.lower().startswith('prio:'):
             try:
-                prio_value = int(arg.split(':')[1])
+                prio_value = int(arg.split(':')[1])  # Direct int conversion instead of safe_int_conversion
                 if 1 <= prio_value <= 5:
                     priority = prio_value
             except (ValueError, IndexError):
@@ -48,7 +48,7 @@ async def wishlist_add_command(update: Update, context: ContextTypes.DEFAULT_TYP
             item_args.append(arg)
     
     if not item_args:
-        await send_formatted_message(update, "❌ Vui lòng nhập tên sản phẩm")
+        await send_formatted_message(update, "⌘ Vui lòng nhập tên sản phẩm")
         return
     
     # Try to parse price from last argument
@@ -83,7 +83,7 @@ async def wishlist_add_command(update: Update, context: ContextTypes.DEFAULT_TYP
     
     message = f"""✅ *ĐÃ THÊM VÀO WISHLIST!*
 
-🛍️ *Tên:* {item_name}
+🛏️ *Tên:* {item_name}
 💰 *Giá:* {price_text}
 {priority_emoji} *Level {priority}:* {priority_name}"""
     
@@ -100,14 +100,14 @@ async def wishlist_view_command(update: Update, context: ContextTypes.DEFAULT_TY
     wishlist_data = db.get_wishlist(user_id)
     
     if not wishlist_data.data:
-        await send_formatted_message(update, "🛍️ Wishlist trống! Dùng /wishadd để thêm sản phẩm")
+        await send_formatted_message(update, "🛏️ Wishlist trống! Dùng /wishadd để thêm sản phẩm")
         return
     
     # Filter active items
     active_items = [item for item in wishlist_data.data if not item.get("purchased", False)]
     
     if not active_items:
-        await send_formatted_message(update, "🛍️ Wishlist trống! Dùng /wishadd để thêm sản phẩm")
+        await send_formatted_message(update, "🛏️ Wishlist trống! Dùng /wishadd để thêm sản phẩm")
         return
     
     # Group by priority
@@ -143,7 +143,7 @@ async def wishlist_view_command(update: Update, context: ContextTypes.DEFAULT_TY
     financial_data = get_simple_financial_data(user_id)
     
     # Build message
-    message = "🛍️ *WISHLIST 5 LEVELS*\n\n"
+    message = "🛏️ *WISHLIST 5 LEVELS*\n\n"
     
     # Financial summary
     message += "💰 *PHÂN TÍCH TÀI CHÍNH*\n"
@@ -215,7 +215,7 @@ async def wishlist_remove_command(update: Update, context: ContextTypes.DEFAULT_
     args = context.args
     
     if not args:
-        await send_formatted_message(update, "❌ Cách dùng: `/wishremove [tên sản phẩm]`\n💡 Ví dụ: `/wishremove iPhone` hoặc `/wishremove iphone`")
+        await send_formatted_message(update, "⌘ Cách dùng: `/wishremove [tên sản phẩm]`\n💡 Ví dụ: `/wishremove iPhone` hoặc `/wishremove iphone`")
         return
     
     # Join all arguments as the item name to search
@@ -224,13 +224,13 @@ async def wishlist_remove_command(update: Update, context: ContextTypes.DEFAULT_
     # Get wishlist
     wishlist_data = db.get_wishlist(user_id)
     if not wishlist_data.data:
-        await send_formatted_message(update, "❌ Wishlist trống")
+        await send_formatted_message(update, "⌘ Wishlist trống")
         return
     
     active_items = [item for item in wishlist_data.data if not item.get("purchased", False)]
     
     if not active_items:
-        await send_formatted_message(update, "❌ Wishlist trống")
+        await send_formatted_message(update, "⌘ Wishlist trống")
         return
     
     # Use Gemini to find the best matching item
@@ -241,7 +241,7 @@ async def wishlist_remove_command(update: Update, context: ContextTypes.DEFAULT_
         item_names = [item["item_name"] for item in active_items]
         items_text = "\n".join([f"• {name}" for name in item_names[:10]])  # Show max 10 items
         
-        message = f"""❌ *KHÔNG TÌM THẤY SẢN PHẨM*
+        message = f"""⌘ *KHÔNG TÌM THẤY SẢN PHẨM*
 
 🔍 *Tìm kiếm:* `{search_term}`
 
@@ -267,7 +267,7 @@ async def wishlist_remove_command(update: Update, context: ContextTypes.DEFAULT_
     
     message = f"""✅ *ĐÃ XÓA KHỎI WISHLIST!*
 
-🛍️ *Tên:* {item_name}
+🛏️ *Tên:* {item_name}
 💰 *Giá:* {price_text}
 {priority_emoji} *Level:* {priority}"""
     

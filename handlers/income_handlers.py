@@ -28,7 +28,7 @@ async def income_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     success, amount, _ = safe_parse_amount(args[1])
     
     if not success:
-        await send_formatted_message(update, "❌ Số tiền không hợp lệ")
+        await send_formatted_message(update, "⌘ Số tiền không hợp lệ")
         return
     
     description = " ".join(args[2:]) if len(args) > 2 else f"{income_type} income"
@@ -65,17 +65,17 @@ async def income_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await send_formatted_message(update, message)
 
-# Add this helper function to income_handlers.py:
-
 async def _process_income_allocation(user_id, income_type, amount, description, income_id):
-    """Process income allocation to accounts"""
+    """Process income allocation to accounts - USES CONSOLIDATED DB FUNCTIONS"""
     
     if income_type == "construction":
-        # Construction income goes directly to construction account
-        await _add_to_account(user_id, "construction", amount, "income_allocation", 
-                             f"Construction income: {description}", income_id)
+        # Construction income goes directly to construction account using CONSOLIDATED function
+        db.update_account_balance(
+            user_id, "construction", amount, "income_allocation", 
+            f"Construction income: {description}", income_id
+        )
         
-        return f"🏗️ *Đã thêm vào tài khoản xây dựng*: {format_currency(amount)}"
+        return f"🗯️ *Đã thêm vào tài khoản xây dựng*: {format_currency(amount)}"
     
     else:
         # Salary/random income gets allocated by percentages
@@ -93,7 +93,7 @@ async def _process_income_allocation(user_id, income_type, amount, description, 
             total_pct = sum(allocations.values())
             return f"⚠️ *Cảnh báo*: Tổng phân bổ = {total_pct}% (không phải 100%)\n*Vui lòng kiểm tra `/allocation`*"
         
-        # Allocate to accounts
+        # Allocate to accounts using CONSOLIDATED database function
         allocation_details = []
         
         for account_type in ["need", "fun", "saving", "invest"]:
@@ -101,48 +101,17 @@ async def _process_income_allocation(user_id, income_type, amount, description, 
             if percentage > 0:
                 allocated_amount = amount * (percentage / 100)
                 
-                await _add_to_account(user_id, account_type, allocated_amount, "income_allocation",
-                                     f"{description} ({percentage}%)", income_id)
+                # Use CONSOLIDATED database function
+                db.update_account_balance(
+                    user_id, account_type, allocated_amount, "income_allocation",
+                    f"{description} ({percentage}%)", income_id
+                )
                 
                 account_info = ACCOUNT_DESCRIPTIONS[account_type]
                 allocation_details.append(f"{account_info['emoji']} *{account_info['name']}* ({percentage}%): {format_currency(allocated_amount)}")
         
         return "💰 *PHÂN BỔ TÀI KHOẢN*:\n" + "\n".join(allocation_details)
 
-async def _add_to_account(user_id, account_type, amount, transaction_type, description, reference_id):
-    """Add money to specific account with transaction logging"""
-    
-    # Get current balance
-    account_data = db.get_account_by_type(user_id, account_type)
-    current_balance = 0
-    
-    if account_data.data:
-        current_balance = float(account_data.data[0].get("current_balance", 0))
-    
-    # Update balance
-    new_balance = current_balance + amount
-    
-    account_update = {
-        "user_id": user_id,
-        "account_type": account_type,
-        "current_balance": new_balance,
-        "last_updated": datetime.now().isoformat()
-    }
-    
-    db.upsert_account(account_update)
-    
-    # Log transaction
-    transaction_data = {
-        "user_id": user_id,
-        "account_type": account_type,
-        "transaction_type": transaction_type,
-        "amount": amount,
-        "description": description,
-        "reference_id": reference_id
-    }
-    
-    db.insert_account_transaction(transaction_data)
-    
 def calculate_income_by_type(user_id, month_start):
     """Calculate income by construction vs general - simplified"""
     try:

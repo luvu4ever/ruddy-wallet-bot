@@ -79,17 +79,13 @@ class DatabaseManager:
     def get_budget_plan_by_category(self, user_id, category):
         """Get budget plan for specific category"""
         return self.supabase.table("budget_plans").select("*").eq("user_id", user_id).eq("category", category).execute()
-
-    def get_budget_plan_by_category(self, user_id, category):
-        """Get budget plan for specific category"""
-        return self.supabase.table("budget_plans").select("*").eq("user_id", user_id).eq("category", category).execute()
     
     def get_accounts(self, user_id):
         """Get all accounts for user"""
         return self.supabase.table("accounts").select("*").eq("user_id", user_id).execute()
     
     def upsert_account(self, account_data):
-        """Insert or update account record with proper conflict resolution"""
+        """Insert or update account record with proper conflict resolution - CONSOLIDATED"""
         try:
             # Use on_conflict parameter to specify which columns to use for conflict resolution
             return self.supabase.table("accounts").upsert(
@@ -118,9 +114,12 @@ class DatabaseManager:
                 print(f"Account upsert fallback failed: {fallback_error}")
                 raise fallback_error
 
-
     def update_account_balance(self, user_id, account_type, amount_change, transaction_type, description, reference_id=None):
-        """Update account balance and log transaction with better error handling"""
+        """CONSOLIDATED account balance update with transaction logging
+        
+        This is the SINGLE SOURCE OF TRUTH for all account balance updates.
+        Replaces all duplicate functions from other files.
+        """
         from datetime import datetime
         
         try:
@@ -134,7 +133,7 @@ class DatabaseManager:
             # Calculate new balance
             new_balance = current_balance + amount_change  # Negative amount_change for expenses
             
-            # Update account with safer upsert
+            # Update account with consolidated upsert method
             account_update = {
                 "user_id": user_id,
                 "account_type": account_type,
@@ -142,7 +141,7 @@ class DatabaseManager:
                 "last_updated": datetime.now().isoformat()
             }
             
-            # Use the improved upsert method
+            # Use the consolidated upsert method
             result = self.upsert_account(account_update)
             
             # Log transaction
@@ -186,48 +185,6 @@ class DatabaseManager:
             query = query.eq("account_type", account_type)
         return query.order("created_at", desc=True).limit(limit).execute()
 
-    def get_monthly_closure(self, user_id, year, month):
-        """Check if month is already closed"""
-        return self.supabase.table("monthly_closures").select("*").eq("user_id", user_id).eq("year", year)
-
-    def update_account_balance(self, user_id, account_type, amount_change, transaction_type, description, reference_id=None):
-        """Update account balance and log transaction"""
-        from datetime import datetime
-        
-        # Get current balance
-        account_data = self.get_account_by_type(user_id, account_type)
-        current_balance = 0
-        
-        if account_data.data:
-            current_balance = float(account_data.data[0].get("current_balance", 0))
-        
-        # Calculate new balance
-        new_balance = current_balance + amount_change  # Negative amount_change for expenses
-        
-        # Update account
-        account_update = {
-            "user_id": user_id,
-            "account_type": account_type,
-            "current_balance": new_balance,
-            "last_updated": datetime.now().isoformat()
-        }
-        
-        result = self.upsert_account(account_update)
-        
-        # Log transaction
-        transaction_data = {
-            "user_id": user_id,
-            "account_type": account_type,
-            "transaction_type": transaction_type,
-            "amount": amount_change,
-            "description": description,
-            "reference_id": reference_id
-        }
-        
-        self.insert_account_transaction(transaction_data)
-        
-        return result, new_balance
-
     def get_account_balance(self, user_id, account_type):
         """Get current balance for specific account"""
         account_data = self.get_account_by_type(user_id, account_type)
@@ -236,7 +193,7 @@ class DatabaseManager:
         return 0
         
     def check_monthly_closure(self, user_id, year, month):
-        """Check if month is already closed"""
+        """Check if month is already closed - SINGLE FUNCTION (removed duplicate)"""
         return self.supabase.table("monthly_closures").select("*").eq("user_id", user_id).eq("year", year).eq("month", month).execute()
 
     def insert_monthly_closure(self, closure_data):
@@ -250,6 +207,15 @@ class DatabaseManager:
     def get_monthly_closure_by_period(self, user_id, year, month):
         """Get specific monthly closure"""
         return self.supabase.table("monthly_closures").select("*").eq("user_id", user_id).eq("year", year).eq("month", month).execute()
+
+    def insert_account_balance_history(self, history_data):
+        """Insert account balance history record"""
+        return self.supabase.table("account_balance_history").insert(history_data).execute()
+    
+    def get_balance_history(self, user_id, limit=6):
+        """Get account balance history for user"""
+        user_id_str = str(user_id)
+        return self.supabase.table("account_balance_history").select("*").eq("user_id", user_id_str).order("year", desc=True).order("month", desc=True).limit(limit).execute()
 
 # Global database instance
 db = DatabaseManager()
