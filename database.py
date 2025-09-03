@@ -208,5 +208,14 @@ class DatabaseManager:
         """Get specific monthly closure"""
         return self.supabase.table("monthly_closures").select("*").eq("user_id", user_id).eq("year", year).eq("month", month).execute()
 
+    def insert_account_balance_history(self, history_data):
+        """Insert account balance history record"""
+        return self.supabase.table("account_balance_history").insert(history_data).execute()
+    
+    def get_balance_history(self, user_id, limit=6):
+        """Get account balance history for user"""
+        user_id_str = str(user_id)
+        return self.supabase.table("account_balance_history").select("*").eq("user_id", user_id_str).order("year", desc=True).order("month", desc=True).limit(limit).execute()
+
 # Global database instance
 db = DatabaseManager()

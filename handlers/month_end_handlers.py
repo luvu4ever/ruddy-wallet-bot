@@ -153,87 +153,143 @@ async def handle_month_end_confirmation(update: Update, context: ContextTypes.DE
         return True
 
 async def _execute_month_end_processing(user_id: int, pending_data: dict):
-    """Execute the actual month-end processing - USES CONSOLIDATED DB FUNCTIONS"""
+    """Execute month-end processing - ALWAYS reset need/fun to 0, save history"""
     try:
         month = pending_data['month']
         year = pending_data['year']
         need_balance = pending_data['need_balance']
         fun_balance = pending_data['fun_balance']
-        total_transfer = pending_data['total_transfer']
+        saving_balance = pending_data['saving_balance']
+        invest_balance = pending_data['invest_balance']
+        construction_balance = pending_data['construction_balance']
         
-        # 1. Create monthly closure record
+        # Convert user_id to string for database
+        user_id_str = str(user_id)
+        
+        logging.info(f"Processing month-end for user {user_id_str}, month {month}/{year}")
+        
+        # 1. Save account balance history BEFORE any changes
+        balance_history_data = {
+            "user_id": user_id_str,
+            "year": int(year),
+            "month": int(month),
+            "need_balance": float(need_balance),
+            "fun_balance": float(fun_balance),
+            "saving_balance": float(saving_balance),
+            "invest_balance": float(invest_balance),
+            "construction_balance": float(construction_balance)
+        }
+        
+        # Insert balance history
+        db.supabase.table("account_balance_history").insert(balance_history_data).execute()
+        logging.info(f"Saved balance history for {month}/{year}")
+        
+        # 2. Calculate transfers (only positive amounts go to savings)
+        transfer_from_need = max(0, need_balance)  # Only positive
+        transfer_from_fun = max(0, fun_balance)   # Only positive
+        total_transfer = transfer_from_need + transfer_from_fun
+        
+        # 3. Create monthly closure record
         closure_data = {
-            "user_id": user_id,
-            "year": year,
-            "month": month,
-            "total_income": pending_data['total_income'],
-            "total_expenses": pending_data['total_expenses'],
-            "net_savings": pending_data['net_savings'],
-            "need_balance_before": need_balance,
-            "fun_balance_before": fun_balance,
-            "saving_balance_before": pending_data['saving_balance'],
-            "invest_balance_before": pending_data['invest_balance'],
-            "construction_balance_before": pending_data['construction_balance'],
-            "transferred_to_savings": total_transfer
+            "user_id": user_id_str,
+            "year": int(year),
+            "month": int(month),
+            "total_income": float(pending_data['total_income']),
+            "total_expenses": float(pending_data['total_expenses']),
+            "net_savings": float(pending_data['net_savings']),
+            "need_balance_before": float(need_balance),
+            "fun_balance_before": float(fun_balance),
+            "saving_balance_before": float(saving_balance),
+            "invest_balance_before": float(invest_balance),
+            "construction_balance_before": float(construction_balance),
+            "transferred_to_savings": float(total_transfer)
         }
         
         closure_result = db.insert_monthly_closure(closure_data)
         closure_id = closure_result.data[0]["id"] if closure_result.data else None
+        logging.info(f"Created monthly closure with ID: {closure_id}")
         
-        # 2. Transfer money from need/fun to savings using CONSOLIDATED DB FUNCTIONS
+        # 4. RESET ACCOUNTS - regardless of positive/negative
+        
+        # Reset need account to 0
+        if need_balance != 0:
+            db.update_account_balance(
+                user_id, "need", -need_balance, "month_end_reset",
+                f"Month-end reset: {format_currency(need_balance)} → 0đ", closure_id
+            )
+            logging.info(f"Reset need account: {need_balance} → 0")
+        
+        # Reset fun account to 0  
+        if fun_balance != 0:
+            db.update_account_balance(
+                user_id, "fun", -fun_balance, "month_end_reset",
+                f"Month-end reset: {format_currency(fun_balance)} → 0đ", closure_id
+            )
+            logging.info(f"Reset fun account: {fun_balance} → 0")
+        
+        # 5. Transfer positive amounts to savings (if any)
         if total_transfer > 0:
-            # Transfer from need account
-            if need_balance > 0:
-                db.update_account_balance(
-                    user_id, "need", -need_balance, "month_end_transfer",
-                    f"Month-end transfer to savings: {format_currency(need_balance)}", closure_id
-                )
-            
-            # Transfer from fun account  
-            if fun_balance > 0:
-                db.update_account_balance(
-                    user_id, "fun", -fun_balance, "month_end_transfer",
-                    f"Month-end transfer to savings: {format_currency(fun_balance)}", closure_id
-                )
-            
-            # Add to savings account
             db.update_account_balance(
                 user_id, "saving", total_transfer, "month_end_transfer",
-                f"Month-end transfer from need+fun: {format_currency(total_transfer)}", closure_id
+                f"Month-end transfer: {format_currency(total_transfer)} from need+fun", closure_id
             )
+            logging.info(f"Transferred {total_transfer} to savings")
         
-        # 3. Get final balances using CONSOLIDATED DB FUNCTIONS
+        # 6. Get final balances
+        final_need_balance = 0  # Always 0 after reset
+        final_fun_balance = 0   # Always 0 after reset
         final_saving_balance = db.get_account_balance(user_id, "saving")
         final_invest_balance = db.get_account_balance(user_id, "invest")
         final_construction_balance = db.get_account_balance(user_id, "construction")
         
-        # 4. Build success message with calendar month info
+        # 7. Build success message
         date_range = get_month_display(year, month)
         
-        success_message = f"""✅ *ĐÃ ĐÓNG THÁNG {month}/{year} THÀNH CÔNG!*
-📅 *({date_range})*
+        # Build detailed action list
+        actions_performed = []
+        
+        if need_balance > 0:
+            actions_performed.append(f"• Chuyển từ Thiết yếu: `{format_currency(need_balance)}` → Tiết kiệm")
+        elif need_balance < 0:
+            actions_performed.append(f"• Reset Thiết yếu: `{format_currency(need_balance)}` → `0đ` (số âm)")
+        else:
+            actions_performed.append(f"• Thiết yếu: `0đ` → `0đ` (không đổi)")
+        
+        if fun_balance > 0:
+            actions_performed.append(f"• Chuyển từ Giải trí: `{format_currency(fun_balance)}` → Tiết kiệm")
+        elif fun_balance < 0:
+            actions_performed.append(f"• Reset Giải trí: `{format_currency(fun_balance)}` → `0đ` (số âm)")
+        else:
+            actions_performed.append(f"• Giải trí: `0đ` → `0đ` (không đổi)")
+        
+        actions_performed.append(f"• Lưu lịch sử số dư tháng {month}/{year}")
+        
+        success_message = f"""✅ **ĐÃ ĐÓNG THÁNG {month}/{year} THÀNH CÔNG!**
+📅 **({date_range})**
 
-🔄 *CÁC THAO TÁC ĐÃ THỰC HIỆN:*
-• Chuyển từ Thiết yếu: `{format_currency(need_balance)}` → Tiết kiệm
-• Chuyển từ Giải trí: `{format_currency(fun_balance)}` → Tiết kiệm
-• Đặt lại Thiết yếu và Giải trí về `0₫`
+🔄 **CÁC THAO TÁC ĐÃ THỰC HIỆN:**
+{chr(10).join(actions_performed)}
 
-💳 *TÀI KHOẢN SAU KHI ĐÓNG:*
-🏠 Thiết yếu: `0₫`
-🎮 Giải trí: `0₫`
+💳 **TÀI KHOẢN SAU KHI ĐÓNG:**
+🏠 Thiết yếu: `{format_currency(final_need_balance)}`
+🎮 Giải trí: `{format_currency(final_fun_balance)}`
 💰 Tiết kiệm: `{format_currency(final_saving_balance)}`
 📈 Đầu tư: `{format_currency(final_invest_balance)}`
-🗯️ Xây dựng: `{format_currency(final_construction_balance)}`
+🏗️ Xây dựng: `{format_currency(final_construction_balance)}`
 
-📊 *TỔNG KẾT THÁNG:*
+📊 **TỔNG KẾT THÁNG:**
 💵 Thu nhập: `{format_currency(pending_data['total_income'])}`
 💸 Chi tiêu: `{format_currency(pending_data['total_expenses'])}`
-📈 Tiết kiệm ròng: `{format_currency(pending_data['net_savings'])}`
-💰 Chuyển vào tiết kiệm: `{format_currency(total_transfer)}`
+📈 Tiết kiệm ròng: `{format_currency(pending_data['net_savings'])}`"""
+        
+        if total_transfer > 0:
+            success_message += f"\n💰 Chuyển vào tiết kiệm: `{format_currency(total_transfer)}`"
+        
+        success_message += f"""\n💾 Đã lưu lịch sử số dư tháng {month}/{year}
 
-🎉 *Tháng mới bắt đầu! Chúc bạn quản lý tài chính tốt!*
+🎉 **Tháng mới bắt đầu! Chúc bạn quản lý tài chính tốt!**
 
-💡 *Xem lịch sử*: `/monthhistory`"""
+💡 **Xem lịch sử:** `/monthhistory` | `/balancehistory`"""
         
         return {'success': True, 'message': success_message}
         
@@ -241,6 +297,52 @@ async def _execute_month_end_processing(user_id: int, pending_data: dict):
         logging.error(f"Month-end execution error: {e}")
         return {'success': False, 'error': str(e)}
 
+
+# ADD this new function at the end of month_end_handlers.py
+async def balancehistory_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """View account balance history: /balancehistory"""
+    if not await check_authorization(update):
+        return
+    
+    user_id = update.effective_user.id
+    user_id_str = str(user_id)
+    
+    # Get past 6 months of balance history
+    history_data = db.supabase.table("account_balance_history").select("*").eq("user_id", user_id_str).order("year", desc=True).order("month", desc=True).limit(6).execute()
+    
+    if not history_data.data:
+        await send_formatted_message(update, 
+            "📊 **CHƯA CÓ LỊCH SỬ SỐ DƯ**\n\n"
+            "💡 Dùng `/endmonth` để đóng tháng và lưu lịch sử")
+        return
+    
+    message = "📊 **LỊCH SỬ SỐ DƯ TÀI KHOẢN**\n\n"
+    
+    for record in history_data.data:
+        month = record["month"]
+        year = record["year"]
+        date_range = get_month_display(year, month)
+        
+        need_bal = float(record.get("need_balance", 0))
+        fun_bal = float(record.get("fun_balance", 0))
+        saving_bal = float(record.get("saving_balance", 0))
+        invest_bal = float(record.get("invest_balance", 0))
+        construction_bal = float(record.get("construction_balance", 0))
+        
+        total_bal = need_bal + fun_bal + saving_bal + invest_bal + construction_bal
+        
+        message += f"📅 **THÁNG {month}/{year}** _{date_range}_\n"
+        message += f"🏠 Thiết yếu: `{format_currency(need_bal)}`\n"
+        message += f"🎮 Giải trí: `{format_currency(fun_bal)}`\n"
+        message += f"💰 Tiết kiệm: `{format_currency(saving_bal)}`\n"
+        message += f"📈 Đầu tư: `{format_currency(invest_bal)}`\n"
+        message += f"🏗️ Xây dựng: `{format_currency(construction_bal)}`\n"
+        message += f"💎 **Tổng tài sản:** `{format_currency(total_bal)}`\n\n"
+    
+    message += "💡 _Chỉ hiển thị 6 tháng gần nhất_"
+    
+    await send_formatted_message(update, message)
+    
 async def monthhistory_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """View past month closures: /monthhistory - now shows calendar months"""
     if not await check_authorization(update):

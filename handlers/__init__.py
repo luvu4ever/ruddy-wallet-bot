@@ -54,7 +54,8 @@ from .allocation_handlers import (
 # Month-end handlers
 from .month_end_handlers import (
     endmonth_command,
-    monthhistory_command
+    monthhistory_command,
+    balancehistory_command
 )
 
 __all__ = [
@@ -103,5 +104,6 @@ __all__ = [
     
     # Month-end handlers
     "endmonth_command",
-    "monthhistory_command"
+    "monthhistory_command",
+    "balancehistory_command"
 ]
