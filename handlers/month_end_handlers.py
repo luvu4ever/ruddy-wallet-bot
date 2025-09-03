@@ -11,16 +11,13 @@ from utils import (
 from config import ACCOUNT_DESCRIPTIONS
 
 async def endmonth_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Manual month-end processing: /endmonth - USES CONSOLIDATED DB FUNCTIONS"""
     if not await check_authorization(update):
         return
     
     user_id = update.effective_user.id
     
-    # Get current calendar month instead of salary month
     current_month, current_year = get_current_month()
     
-    # Check if calendar month is already closed - USES CONSOLIDATED FUNCTION
     existing_closure = db.check_monthly_closure(user_id, current_year, current_month)
     if existing_closure.data:
         closure_date = existing_closure.data[0]["created_at"][:10]
@@ -32,29 +29,24 @@ async def endmonth_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💡 *Xem lịch sử*: `/monthhistory`")
         return
     
-    # Get current account balances
     accounts_data = db.get_accounts(user_id)
     if not accounts_data.data:
         await send_formatted_message(update, "⛔ Không tìm thấy tài khoản. Vui lòng thử lại.")
         return
     
-    # Build accounts dict
     accounts_dict = {acc["account_type"]: acc for acc in accounts_data.data}
     
-    # Calculate month-end summary
     need_balance = float(accounts_dict.get("need", {}).get("current_balance", 0))
     fun_balance = float(accounts_dict.get("fun", {}).get("current_balance", 0))
     saving_balance = float(accounts_dict.get("saving", {}).get("current_balance", 0))
     invest_balance = float(accounts_dict.get("invest", {}).get("current_balance", 0))
-    construction_balance = float(accounts_dict.get("construction", {}).get("current_balance", 0))
+    mama_balance = float(accounts_dict.get("mama", {}).get("current_balance", 0))
     
-    # Calculate transfer amounts
-    excess_need = max(0, need_balance)  # All remaining need money goes to savings
-    excess_fun = max(0, fun_balance)    # All remaining fun money goes to savings
+    excess_need = max(0, need_balance)
+    excess_fun = max(0, fun_balance)
     total_transfer = excess_need + excess_fun
     new_saving_balance = saving_balance + total_transfer
     
-    # Get monthly financial summary for calendar month
     month_start, month_end = get_month_date_range(current_year, current_month)
     monthly_expenses = db.get_monthly_expenses(user_id, month_start)
     monthly_income = db.get_monthly_income(user_id, month_start)
@@ -63,7 +55,6 @@ async def endmonth_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_income = sum(float(inc["amount"]) for inc in monthly_income.data) if monthly_income.data else 0
     net_savings = total_income - total_expenses
     
-    # Show pre-processing summary and ask for confirmation
     date_range = get_month_display(current_year, current_month)
     
     summary_message = f"""📊 *TỔNG KẾT THÁNG {current_month}/{current_year}*
@@ -79,7 +70,7 @@ async def endmonth_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🎮 Giải trí: `{format_currency(fun_balance)}`
 💰 Tiết kiệm: `{format_currency(saving_balance)}`
 📈 Đầu tư: `{format_currency(invest_balance)}`
-🗯️ Xây dựng: `{format_currency(construction_balance)}`
+✅ Mama: `{format_currency(mama_balance)}`
 
 🔄 *SẼ THỰC HIỆN:*
 • Chuyển số dư Thiết yếu → Tiết kiệm: `{format_currency(excess_need)}`
@@ -93,7 +84,6 @@ async def endmonth_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await send_formatted_message(update, summary_message)
     
-    # Store pending closure data in context for confirmation
     context.user_data['pending_month_end'] = {
         'month': current_month,
         'year': current_year,
@@ -101,7 +91,7 @@ async def endmonth_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'fun_balance': fun_balance,
         'saving_balance': saving_balance,
         'invest_balance': invest_balance,
-        'construction_balance': construction_balance,
+        'mama_balance': mama_balance,
         'total_transfer': total_transfer,
         'total_expenses': total_expenses,
         'total_income': total_income,
@@ -109,23 +99,18 @@ async def endmonth_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
 
 async def handle_month_end_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE, message_text: str):
-    """Handle month-end confirmation when user types 'CONFIRM'"""
     if not await check_authorization(update):
         return False
     
     user_id = update.effective_user.id
     
-    # Check if there's a pending month-end
     pending_data = context.user_data.get('pending_month_end')
     if not pending_data:
         return False
     
-    # Check if user confirmed
     if message_text.upper().strip() == "CONFIRM":
-        # Process confirmation - continue with existing logic
         pass
     else:
-        # Any other input cancels the month-end
         context.user_data.pop('pending_month_end', None)
         await send_formatted_message(update, 
             "⛔ *ĐÃ HỦY ĐÓNG THÁNG*\n\n"
@@ -133,14 +118,10 @@ async def handle_month_end_confirmation(update: Update, context: ContextTypes.DE
         return True
     
     try:
-        # Execute month-end processing
         result = await _execute_month_end_processing(user_id, pending_data)
         
         if result['success']:
-            # Clear pending data
             context.user_data.pop('pending_month_end', None)
-            
-            # Send success message
             await send_formatted_message(update, result['message'])
         else:
             await send_formatted_message(update, f"⛔ Lỗi khi đóng tháng: {result['error']}")
@@ -153,7 +134,6 @@ async def handle_month_end_confirmation(update: Update, context: ContextTypes.DE
         return True
 
 async def _execute_month_end_processing(user_id: int, pending_data: dict):
-    """Execute month-end processing - ALWAYS reset need/fun to 0, save history"""
     try:
         month = pending_data['month']
         year = pending_data['year']
@@ -161,14 +141,12 @@ async def _execute_month_end_processing(user_id: int, pending_data: dict):
         fun_balance = pending_data['fun_balance']
         saving_balance = pending_data['saving_balance']
         invest_balance = pending_data['invest_balance']
-        construction_balance = pending_data['construction_balance']
+        mama_balance = pending_data['mama_balance']
         
-        # Convert user_id to string for database
         user_id_str = str(user_id)
         
         logging.info(f"Processing month-end for user {user_id_str}, month {month}/{year}")
         
-        # 1. Save account balance history BEFORE any changes
         balance_history_data = {
             "user_id": user_id_str,
             "year": int(year),
@@ -177,19 +155,16 @@ async def _execute_month_end_processing(user_id: int, pending_data: dict):
             "fun_balance": float(fun_balance),
             "saving_balance": float(saving_balance),
             "invest_balance": float(invest_balance),
-            "construction_balance": float(construction_balance)
+            "mama_balance": float(mama_balance)
         }
         
-        # Insert balance history
         db.supabase.table("account_balance_history").insert(balance_history_data).execute()
         logging.info(f"Saved balance history for {month}/{year}")
         
-        # 2. Calculate transfers (only positive amounts go to savings)
-        transfer_from_need = max(0, need_balance)  # Only positive
-        transfer_from_fun = max(0, fun_balance)   # Only positive
+        transfer_from_need = max(0, need_balance)
+        transfer_from_fun = max(0, fun_balance)
         total_transfer = transfer_from_need + transfer_from_fun
         
-        # 3. Create monthly closure record
         closure_data = {
             "user_id": user_id_str,
             "year": int(year),
@@ -201,7 +176,7 @@ async def _execute_month_end_processing(user_id: int, pending_data: dict):
             "fun_balance_before": float(fun_balance),
             "saving_balance_before": float(saving_balance),
             "invest_balance_before": float(invest_balance),
-            "construction_balance_before": float(construction_balance),
+            "mama_balance_before": float(mama_balance),
             "transferred_to_savings": float(total_transfer)
         }
         
@@ -209,9 +184,6 @@ async def _execute_month_end_processing(user_id: int, pending_data: dict):
         closure_id = closure_result.data[0]["id"] if closure_result.data else None
         logging.info(f"Created monthly closure with ID: {closure_id}")
         
-        # 4. RESET ACCOUNTS - regardless of positive/negative
-        
-        # Reset need account to 0
         if need_balance != 0:
             db.update_account_balance(
                 user_id, "need", -need_balance, "month_end_reset",
@@ -219,7 +191,6 @@ async def _execute_month_end_processing(user_id: int, pending_data: dict):
             )
             logging.info(f"Reset need account: {need_balance} → 0")
         
-        # Reset fun account to 0  
         if fun_balance != 0:
             db.update_account_balance(
                 user_id, "fun", -fun_balance, "month_end_reset",
@@ -227,7 +198,6 @@ async def _execute_month_end_processing(user_id: int, pending_data: dict):
             )
             logging.info(f"Reset fun account: {fun_balance} → 0")
         
-        # 5. Transfer positive amounts to savings (if any)
         if total_transfer > 0:
             db.update_account_balance(
                 user_id, "saving", total_transfer, "month_end_transfer",
@@ -235,17 +205,14 @@ async def _execute_month_end_processing(user_id: int, pending_data: dict):
             )
             logging.info(f"Transferred {total_transfer} to savings")
         
-        # 6. Get final balances
-        final_need_balance = 0  # Always 0 after reset
-        final_fun_balance = 0   # Always 0 after reset
+        final_need_balance = 0
+        final_fun_balance = 0
         final_saving_balance = db.get_account_balance(user_id, "saving")
         final_invest_balance = db.get_account_balance(user_id, "invest")
-        final_construction_balance = db.get_account_balance(user_id, "construction")
+        final_mama_balance = db.get_account_balance(user_id, "mama")
         
-        # 7. Build success message
         date_range = get_month_display(year, month)
         
-        # Build detailed action list
         actions_performed = []
         
         if need_balance > 0:
@@ -275,7 +242,7 @@ async def _execute_month_end_processing(user_id: int, pending_data: dict):
 🎮 Giải trí: `{format_currency(final_fun_balance)}`
 💰 Tiết kiệm: `{format_currency(final_saving_balance)}`
 📈 Đầu tư: `{format_currency(final_invest_balance)}`
-🏗️ Xây dựng: `{format_currency(final_construction_balance)}`
+✅ Mama: `{format_currency(final_mama_balance)}`
 
 📊 **TỔNG KẾT THÁNG:**
 💵 Thu nhập: `{format_currency(pending_data['total_income'])}`
@@ -297,17 +264,13 @@ async def _execute_month_end_processing(user_id: int, pending_data: dict):
         logging.error(f"Month-end execution error: {e}")
         return {'success': False, 'error': str(e)}
 
-
-# ADD this new function at the end of month_end_handlers.py
 async def balancehistory_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """View account balance history: /balancehistory"""
     if not await check_authorization(update):
         return
     
     user_id = update.effective_user.id
     user_id_str = str(user_id)
     
-    # Get past 6 months of balance history
     history_data = db.supabase.table("account_balance_history").select("*").eq("user_id", user_id_str).order("year", desc=True).order("month", desc=True).limit(6).execute()
     
     if not history_data.data:
@@ -327,30 +290,28 @@ async def balancehistory_command(update: Update, context: ContextTypes.DEFAULT_T
         fun_bal = float(record.get("fun_balance", 0))
         saving_bal = float(record.get("saving_balance", 0))
         invest_bal = float(record.get("invest_balance", 0))
-        construction_bal = float(record.get("construction_balance", 0))
+        mama_bal = float(record.get("mama_balance", 0))
         
-        total_bal = need_bal + fun_bal + saving_bal + invest_bal + construction_bal
+        total_bal = need_bal + fun_bal + saving_bal + invest_bal + mama_bal
         
         message += f"📅 **THÁNG {month}/{year}** _{date_range}_\n"
         message += f"🏠 Thiết yếu: `{format_currency(need_bal)}`\n"
         message += f"🎮 Giải trí: `{format_currency(fun_bal)}`\n"
         message += f"💰 Tiết kiệm: `{format_currency(saving_bal)}`\n"
         message += f"📈 Đầu tư: `{format_currency(invest_bal)}`\n"
-        message += f"🏗️ Xây dựng: `{format_currency(construction_bal)}`\n"
+        message += f"✅ Mama: `{format_currency(mama_bal)}`\n"
         message += f"💎 **Tổng tài sản:** `{format_currency(total_bal)}`\n\n"
     
     message += "💡 _Chỉ hiển thị 6 tháng gần nhất_"
     
     await send_formatted_message(update, message)
-    
+
 async def monthhistory_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """View past month closures: /monthhistory - now shows calendar months"""
     if not await check_authorization(update):
         return
     
     user_id = update.effective_user.id
     
-    # Get past 6 month closures
     closures_data = db.get_monthly_closures_history(user_id, limit=6)
     
     if not closures_data.data:
@@ -359,7 +320,6 @@ async def monthhistory_command(update: Update, context: ContextTypes.DEFAULT_TYP
             "💡 Dùng `/endmonth` để đóng tháng hiện tại")
         return
     
-    # Build history message
     message = "📅 *LỊCH SỬ TIẾT KIỆM THÁNG*\n\n"
     
     for closure in closures_data.data:
@@ -372,11 +332,9 @@ async def monthhistory_command(update: Update, context: ContextTypes.DEFAULT_TYP
         net_savings = float(closure["net_savings"])
         transferred = float(closure.get("transferred_to_savings", 0))
         
-        # Calculate final saving balance after this closure
         saving_before = float(closure.get("saving_balance_before", 0))
         saving_after = saving_before + transferred
         
-        # Get calendar month display range
         date_range = get_month_display(year, month)
         
         message += f"📊 *THÁNG {month}/{year}* _(đóng {created_date})_\n"

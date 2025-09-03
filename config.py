@@ -1,29 +1,18 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
-# =============================================================================
-# BASIC CONFIGURATION
-# =============================================================================
-
-# Default category for subscriptions
 DEFAULT_SUBSCRIPTION_CATEGORY = "cá nhân"
 
-# Income types - simplified
 INCOME_TYPES = {
-    "construction": {"emoji": "🗯️", "description": "Construction income"},
+    "mama": {"emoji": "✅", "description": "Mama income"},    
     "salary": {"emoji": "💵", "description": "Monthly salary"},
     "random": {"emoji": "🎉", "description": "Additional income"}
 }
 
 def get_income_emoji(income_type):
     return INCOME_TYPES.get(income_type, {}).get("emoji", "💰")
-
-# =============================================================================
-# SIMPLE MESSAGE TEMPLATES FOR CALENDAR MONTHS
-# =============================================================================
 
 MESSAGE_TEMPLATES = {
     "list_overview": """📋 *THÁNG {month}/{year}*
@@ -33,9 +22,9 @@ MESSAGE_TEMPLATES = {
 
 💰 *TỔNG: {total}*
 
-💵 Thu: `{construction_income}` + `{general_income}`
-💸 Chi: `{construction_expense}` + `{general_expense}` 
-📈 Tiết kiệm: `{construction_net}` + `{general_net}`{wishlist_section}""",
+💵 Thu: `{mama_income}` + `{general_income}`
+💸 Chi: `{mama_expense}` + `{general_expense}` 
+📈 Tiết kiệm: `{mama_net}` + `{general_net}`{wishlist_section}""",
 
     "summary_report": """📊 *BÁO CÁO {month}/{year}*
 📅 {date_range}{subscription_info}
@@ -44,7 +33,7 @@ MESSAGE_TEMPLATES = {
 💰 Chi: `{total_expenses}` 
 📈 Tiết kiệm: `{net_savings}`
 
-🗯️ Xây dựng: Thu `{construction_income}` - Chi `{construction_expense}` = `{construction_net}`
+🗯️ Mama: Thu `{mama_income}` - Chi `{mama_expense}` = `{mama_net}`
 💰 Khác: Thu `{general_income}` - Chi `{general_expense}` = `{general_net}`{budget_info}
 
 📊 {expense_count} chi tiêu, {income_count} thu nhập""",
@@ -64,9 +53,7 @@ MESSAGE_TEMPLATES = {
 {budget_status} {status_text}: `{amount}`"""
 }
 
-# Simple formatting functions
 def format_budget_info(remaining_budget, category):
-    """Format budget info for category - uses utils.format_currency"""
     from utils import format_currency
     
     if category not in remaining_budget:
@@ -81,14 +68,12 @@ def format_budget_info(remaining_budget, category):
         return f" _⚠️ (vượt: {format_currency(abs(remaining))})_"
 
 def format_expense_item(expense):
-    """Format expense item - concise version - uses utils.format_currency"""
     from datetime import datetime
     from utils import format_currency
     
     amount = float(expense["amount"])
     description = expense["description"]
     
-    # Get date in dd/mm format
     date_obj = datetime.strptime(expense["date"], "%Y-%m-%d")
     date_str = f"{date_obj.day:02d}/{date_obj.month:02d}"
     
@@ -97,10 +82,6 @@ def format_expense_item(expense):
         description=description,
         amount=format_currency(amount)
     )
-
-# =============================================================================
-# BOT MESSAGES FOR CALENDAR MONTHS
-# =============================================================================
 
 BOT_MESSAGES = {
     "welcome": """🤖 *CHÀO MỪNG!*
@@ -115,7 +96,7 @@ BOT_MESSAGES = {
 📊 `/list 15/08/2025` - Chi tiêu ngày
 📈 `/summary` - Báo cáo tháng
 💰 `/budget ăn uống 1.5m` - Đặt budget
-🛏️ `/wishlist` - Wishlist
+🛍️ `/wishlist` - Wishlist
 ❓ `/help` - Hướng dẫn""",
     
     "help": """💡 *HƯỚNG DẪN*
@@ -125,7 +106,7 @@ BOT_MESSAGES = {
 
 *💵 THU NHẬP:*
 • `/income salary 3m`
-• `/income construction 2m`
+• `/income mama 2m`
 
 *📊 XEM:*
 • `/list` - Tổng quan
@@ -138,7 +119,7 @@ BOT_MESSAGES = {
 • `/account` - Xem tài khoản
 • `/allocation` - Phân bổ thu nhập
 
-*🛏️ WISHLIST:*
+*🛍️ WISHLIST:*
 • `/wishadd iPhone 25m prio:1` - Thêm
 • `/wishlist` - Xem + phân tích
 • `/wishremove iPhone` - Xóa
@@ -162,17 +143,13 @@ Dùng `/editsaving 500k` để bắt đầu.""",
 VD: `50k cà phê`, `/help`"""
 }
 
-# =============================================================================
-# CATEGORIES - SIMPLIFIED
-# =============================================================================
-
 CATEGORIES = {
     "ăn uống": {"emoji": "🍜", "keywords": ["food", "drink", "bún", "phở", "cơm"]},
     "di chuyển": {"emoji": "🚗", "keywords": ["transport", "taxi", "grab", "xăng"]},
     "hóa đơn": {"emoji": "📄", "keywords": ["bill", "điện", "nước", "internet"]},
     "cá nhân": {"emoji": "🎮", "keywords": ["entertainment", "shopping", "áo", "quần"]},
     "mèo": {"emoji": "🐾", "keywords": ["cat", "pet", "mèo", "cát mèo"]},
-    "công trình": {"emoji": "🗯️", "keywords": ["furniture", "sofa", "tủ lạnh", "giường"]},
+    "mama": {"emoji": "✅", "keywords": ["mama", "big items", "furniture"]},
     "linh tinh": {"emoji": "🔧", "keywords": ["small items", "tools", "đèn nhỏ", "ly"]},
     "khác": {"emoji": "📂", "keywords": ["other", "misc"]}
 }
@@ -184,10 +161,6 @@ def get_category_emoji(category):
 
 def get_all_category_info():
     return "\n".join([f"• {cat} {get_category_emoji(cat)}" for cat in EXPENSE_CATEGORIES])
-
-# =============================================================================
-# WISHLIST PRIORITIES - 5 LEVELS
-# =============================================================================
 
 WISHLIST_PRIORITIES = {
     1: {"emoji": "🔒", "name": "Untouchable"},
@@ -213,27 +186,20 @@ def get_priority_description(priority):
     }
     return descriptions.get(priority, "Nice to have")
 
-# =============================================================================
-# ACCOUNT TYPES - 4 BASIC ACCOUNTS
-# =============================================================================
-
 ACCOUNT_TYPES = {
     "expense": {"emoji": "💸", "description": "Chi tiêu"},
     "saving": {"emoji": "💰", "description": "Tiết kiệm"},
     "invest": {"emoji": "📈", "description": "Đầu tư"},
-    "construction": {"emoji": "🗯️", "description": "Xây dựng"}
+    "mama": {"emoji": "✅", "description": "Mama"} 
 }
 
 def get_account_emoji(account_type):
-    """Get emoji for account type"""
     return ACCOUNT_TYPES.get(account_type, {}).get("emoji", "💳")
 
 def get_account_description(account_type):
-    """Get description for account type"""
     return ACCOUNT_TYPES.get(account_type, {}).get("description", "Tài khoản")
 
 def get_all_account_types():
-    """Get all account types for display"""
     return list(ACCOUNT_TYPES.keys())
 
 ACCOUNT_DESCRIPTIONS = {
@@ -241,50 +207,34 @@ ACCOUNT_DESCRIPTIONS = {
     "fun": {"emoji": "🎮", "name": "Giải trí", "description": "Cá nhân, linh tinh"},
     "saving": {"emoji": "💰", "name": "Tiết kiệm", "description": "Tiết kiệm tích lũy"},
     "invest": {"emoji": "📈", "name": "Đầu tư", "description": "Đầu tư dài hạn"},
-    "construction": {"emoji": "🗯️", "name": "Xây dựng", "description": "Thu chi xây dựng"}
+    "mama": {"emoji": "✅", "name": "Mama", "description": "Thu chi mama"}
 }
 
 def get_account_description_enhanced(account_type):
-    """Get enhanced description for account type"""
     return ACCOUNT_DESCRIPTIONS.get(account_type, {}).get("description", "Tài khoản")
 
 def get_account_name_enhanced(account_type):
-    """Get enhanced name for account type"""
     return ACCOUNT_DESCRIPTIONS.get(account_type, {}).get("name", account_type.title())
 
 def get_account_emoji_enhanced(account_type):
-    """Get enhanced emoji for account type"""
     return ACCOUNT_DESCRIPTIONS.get(account_type, {}).get("emoji", "💳")
 
 CATEGORY_TO_ACCOUNT = {
-    # Need account categories (essential expenses)
     "ăn uống": "need",
     "di chuyển": "need", 
     "hóa đơn": "need",
     "mèo": "need",
-    
-    # Fun account categories (entertainment/personal)
     "cá nhân": "fun",
     "linh tinh": "fun",
-    
-    # Construction account
-    "công trình": "construction",
-    
-    # Default fallback
+    "mama": "mama",
     "khác": "fun"
 }
 
 def get_account_for_category(category):
-    """Get account type for expense category"""
     return CATEGORY_TO_ACCOUNT.get(category, "fun")
 
 def get_categories_for_account(account_type):
-    """Get list of categories that use this account"""
     return [cat for cat, acc in CATEGORY_TO_ACCOUNT.items() if acc == account_type]
-
-# =============================================================================
-# HELPER FUNCTIONS
-# =============================================================================
 
 def get_message(key, **kwargs):
     message = BOT_MESSAGES.get(key, f"Message '{key}' not found")
@@ -297,10 +247,6 @@ def get_template(key, **kwargs):
     if kwargs:
         return template.format(**kwargs)
     return template
-
-# =============================================================================
-# STARTUP AND ERROR MESSAGES FOR CALENDAR MONTHS
-# =============================================================================
 
 STARTUP_MESSAGES = {
     "starting": "🤖 Simplified Personal Finance Bot is starting...",
@@ -322,22 +268,16 @@ ERROR_MESSAGES = {
 }
 
 def get_startup_message(key, **kwargs):
-    """Get a startup message with optional formatting"""
     message = STARTUP_MESSAGES.get(key, f"Startup message '{key}' not found")
     if kwargs:
         return message.format(**kwargs)
     return message
 
 def get_error_message(key, **kwargs):
-    """Get an error message with optional formatting"""
     message = ERROR_MESSAGES.get(key, f"Error message '{key}' not found")
     if kwargs:
         return message.format(**kwargs)
     return message
-
-# =============================================================================
-# ENVIRONMENT VARIABLES
-# =============================================================================
 
 ALLOWED_USERS = [int(uid) for uid in os.getenv("ALLOWED_USERS").split(",")]
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")

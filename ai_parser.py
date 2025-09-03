@@ -22,7 +22,7 @@ Available categories: {categories_str}
 SIMPLE RULES:
 - "ăn uống" for food/drinks (bún, phở, cơm, cà phê)
 - "mèo" for cat items (cát mèo, thức ăn mèo)
-- "công trình" for big furniture (sofa, tủ lạnh, giường)
+- "mama" for anything related to mama (both furniture and things that involve mama)              
 - "linh tinh" for small items (đèn nhỏ, ly, dao)
 - "cá nhân" for clothes/entertainment (áo, phim, game)
 - "di chuyển" for transport (xăng, taxi, grab)

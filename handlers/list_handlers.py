@@ -16,7 +16,6 @@ from config import (
 )
 
 def format_expense_item_simple(expense):
-    """Simple expense formatting without templates"""
     amount = float(expense["amount"])
     description = expense["description"]
     
@@ -26,12 +25,6 @@ def format_expense_item_simple(expense):
     return f"{date_str} {description} `{format_currency(amount)}`"
 
 async def list_expenses_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Enhanced /list command with multiple modes:
-    - /list - Overview of all categories
-    - /list [category] - Category details for this month
-    - /list dd/mm/yyyy - All expenses for specific date
-    - /list [category] dd/mm/yyyy - Category expenses for specific date
-    """
     if not await check_authorization(update):
         return
     
@@ -39,18 +32,15 @@ async def list_expenses_command(update: Update, context: ContextTypes.DEFAULT_TY
     args = context.args
     
     if not args:
-        # Original behavior - show all categories overview
         await _show_all_categories_expenses(update, user_id)
         return
     
-    # Parse arguments to determine mode
     parsed_args = _parse_list_arguments(args)
     
     if parsed_args["mode"] == "invalid":
         await send_formatted_message(update, parsed_args["error_message"])
         return
     
-    # Handle different modes
     if parsed_args["mode"] == "category_month":
         await _show_category_expenses_for_month(
             update, user_id, parsed_args["category"], 
@@ -66,22 +56,17 @@ async def list_expenses_command(update: Update, context: ContextTypes.DEFAULT_TY
         )
 
 def _parse_list_arguments(args):
-    """Parse /list command arguments to determine mode and extract parameters"""
-    
-    # Join all args to work with
     args_text = " ".join(args).strip()
     
-    # Date patterns - support multiple formats
     date_patterns = [
-        r'\b(\d{1,2})/(\d{1,2})/(\d{4})\b',     # dd/mm/yyyy
-        r'\b(\d{1,2})/(\d{1,2})/(\d{2})\b',      # dd/mm/yy  
-        r'\b(\d{1,2})-(\d{1,2})-(\d{4})\b',      # dd-mm-yyyy
-        r'\b(\d{1,2})-(\d{1,2})-(\d{2})\b',      # dd-mm-yy
-        r'\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b',    # dd.mm.yyyy
-        r'\b(\d{1,2})\.(\d{1,2})\.(\d{2})\b',    # dd.mm.yy
+        r'\b(\d{1,2})/(\d{1,2})/(\d{4})\b',
+        r'\b(\d{1,2})/(\d{1,2})/(\d{2})\b',
+        r'\b(\d{1,2})-(\d{1,2})-(\d{4})\b',
+        r'\b(\d{1,2})-(\d{1,2})-(\d{2})\b',
+        r'\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b',
+        r'\b(\d{1,2})\.(\d{1,2})\.(\d{2})\b',
     ]
     
-    # Try to find date in arguments
     found_date = None
     date_match = None
     
@@ -95,32 +80,28 @@ def _parse_list_arguments(args):
                 month = int(month)
                 year = int(year)
                 
-                # Handle 2-digit years
                 if year < 100:
-                    if year <= 30:  # Assume 2000s
+                    if year <= 30:
                         year += 2000
-                    else:  # Assume 1900s
+                    else:
                         year += 1900
                 
-                # Validate date
                 if 1 <= day <= 31 and 1 <= month <= 12 and 1900 <= year <= 2100:
                     try:
                         found_date = date(year, month, day)
                         date_match = match
                         break
                     except ValueError:
-                        continue  # Invalid date like 31/02
+                        continue
                         
             except ValueError:
                 continue
     
-    # Remove date from args_text to get category
     if found_date and date_match:
         category_text = args_text.replace(date_match.group(), '').strip()
     else:
         category_text = args_text.strip()
     
-    # Find matching category if category_text exists
     matched_category = None
     if category_text:
         matched_category = _find_matching_category(category_text)
@@ -135,7 +116,6 @@ def _parse_list_arguments(args):
 VD: `/list ăn uống`, `/list 15/08/2025`"""
             }
     
-    # Determine mode based on what we found
     if found_date and matched_category:
         return {
             "mode": "category_date",
@@ -148,7 +128,6 @@ VD: `/list ăn uống`, `/list 15/08/2025`"""
             "target_date": found_date
         }
     elif matched_category and not found_date:
-        # Category for current calendar month
         current_month, current_year = get_current_month()
         return {
             "mode": "category_month",
@@ -166,9 +145,6 @@ VD: `/list ăn uống`, `/list 15/08/2025`"""
         }
 
 async def _show_category_expenses_for_month(update: Update, user_id: int, category: str, target_month: int, target_year: int):
-    """Show all expenses for specific category in calendar month"""
-    
-    # Get expenses for this category and calendar month
     month_start, month_end = get_month_date_range(target_year, target_month)
     expenses = db.get_expenses_by_category(user_id, category, month_start)
     
@@ -183,7 +159,6 @@ Không có chi tiêu nào."""
         await send_formatted_message(update, message)
         return
     
-    # Get budget and account info
     try:
         from .budget_handlers import calculate_remaining_budget
         remaining_budget = calculate_remaining_budget(user_id, month_start)
@@ -194,10 +169,8 @@ Không có chi tiêu nào."""
     account_type = get_account_for_category(category)
     account_balance = db.get_account_balance(user_id, account_type)
     
-    # Calculate total spent
     total_spent = sum(float(expense["amount"]) for expense in expenses.data)
     
-    # Budget status (detailed)
     budget_info = ""
     if category in remaining_budget:
         budget_data = remaining_budget[category]
@@ -205,7 +178,6 @@ Không có chi tiêu nào."""
         spent_amount = budget_data["spent"]
         remaining = budget_data["remaining"]
         
-        # Calculate percentage used
         percentage_used = (spent_amount / budget_amount * 100) if budget_amount > 0 else 0
         
         if remaining >= 0:
@@ -223,7 +195,6 @@ Không có chi tiêu nào."""
     else:
         budget_info = f"\n💡 *Chưa đặt budget cho {category}*\nDùng `/budget {category} [số tiền]` để đặt budget"
     
-    # Sort expenses by date (newest first)
     sorted_expenses = sorted(expenses.data, key=lambda x: x["date"], reverse=True)
     expense_lines = [format_expense_item_simple(expense) for expense in sorted_expenses]
     
@@ -242,9 +213,6 @@ Không có chi tiêu nào."""
     await send_long_message(update, message)
 
 async def _show_all_expenses_for_date(update: Update, user_id: int, target_date: date):
-    """Show all expenses for a specific date"""
-    
-    # Get all expenses for the target date
     expenses_data = db.supabase.table("expenses").select("*").eq("user_id", user_id).eq("date", target_date.isoformat()).execute()
     
     formatted_date = target_date.strftime("%d/%m/%Y")
@@ -262,7 +230,6 @@ Không có chi tiêu nào."""
         await send_formatted_message(update, message)
         return
     
-    # Group expenses by category
     expenses_by_category = defaultdict(list)
     total_day = 0
     
@@ -272,12 +239,10 @@ Không có chi tiêu nào."""
         expenses_by_category[category].append(expense)
         total_day += amount
     
-    # Build message
     message = f"""📅 *{formatted_date} ({vn_weekday})*
 
 """
     
-    # Sort categories by total spending
     category_totals = {cat: sum(float(exp["amount"]) for exp in items) 
                       for cat, items in expenses_by_category.items()}
     sorted_categories = sorted(category_totals.items(), key=lambda x: x[1], reverse=True)
@@ -287,7 +252,6 @@ Không có chi tiêu nào."""
         
         message += f"{category_emoji} *{category}* `{format_currency(category_total)}`\n"
         
-        # Show items for this category
         items = sorted(expenses_by_category[category], key=lambda x: x["id"])
         for item in items:
             description = item["description"]
@@ -300,9 +264,6 @@ Không có chi tiêu nào."""
     await send_formatted_message(update, message)
 
 async def _show_category_expenses_for_date(update: Update, user_id: int, category: str, target_date: date):
-    """Show expenses for specific category on specific date"""
-    
-    # Get expenses for this category and date
     expenses_data = db.supabase.table("expenses").select("*").eq("user_id", user_id).eq("category", category).eq("date", target_date.isoformat()).execute()
     
     formatted_date = target_date.strftime("%d/%m/%Y")
@@ -323,7 +284,6 @@ Không có chi tiêu nào."""
         await send_formatted_message(update, message)
         return
     
-    # Calculate total and build expense list
     total_spent = sum(float(expense["amount"]) for expense in expenses_data.data)
     sorted_expenses = sorted(expenses_data.data, key=lambda x: x["id"])
     
@@ -343,7 +303,6 @@ Không có chi tiêu nào."""
     await send_formatted_message(update, message)
 
 async def _show_all_categories_expenses(update: Update, user_id: int):
-    """Show overview - MUCH more concise"""
     target_month, target_year = get_current_month()
     month_start, month_end = get_month_date_range(target_year, target_month)
     
@@ -358,7 +317,6 @@ Chưa có chi tiêu nào."""
         await send_formatted_message(update, message)
         return
     
-    # Get required data with error handling
     try:
         from .budget_handlers import calculate_remaining_budget, get_total_budget
         remaining_budget = calculate_remaining_budget(user_id, month_start)
@@ -378,23 +336,20 @@ Chưa có chi tiêu nào."""
         income_breakdown = calculate_income_by_type(user_id, month_start)
         expense_breakdown = calculate_expenses_by_income_type(user_id, month_start)
     except ImportError:
-        income_breakdown = {"total": 0, "construction": 0, "general": 0}
-        expense_breakdown = {"total": 0, "construction": 0, "general": 0}
+        income_breakdown = {"total": 0, "mama": 0, "general": 0}
+        expense_breakdown = {"total": 0, "mama": 0, "general": 0}
     
-    # Get account balances
     account_balances = {}
-    all_account_types = ["need", "fun", "construction", "saving", "invest"]
+    all_account_types = ["need", "fun", "mama", "saving", "invest"]
     
     accounts_data = db.get_accounts(user_id)
     if not accounts_data.data:
-        # Import from account_handlers (SINGLE SOURCE - removed duplicate)
         from .account_handlers import _initialize_all_accounts
         await _initialize_all_accounts(user_id)
     
     for account_type in all_account_types:
         account_balances[account_type] = db.get_account_balance(user_id, account_type)
 
-    # Group expenses by category
     expenses_by_category = defaultdict(list)
     total_month = 0
     
@@ -404,7 +359,6 @@ Chưa có chi tiêu nào."""
         expenses_by_category[category].append(expense)
         total_month += amount
     
-    # Build categories content - FIXED STRUCTURE
     categories_content = []
     category_totals = {cat: sum(float(exp["amount"]) for exp in items) 
                       for cat, items in expenses_by_category.items()}
@@ -414,7 +368,6 @@ Chưa có chi tiêu nào."""
     for category, category_total in sorted_categories:
         category_emoji = get_category_emoji(category)
         
-        # Build budget info for this category
         budget_text = ""
         if category in remaining_budget:
             budget_data = remaining_budget[category]
@@ -427,33 +380,26 @@ Chưa có chi tiêu nào."""
             else:
                 budget_text = f"\n  💰 Budget: `{format_currency(budget_amount)}` | Dùng: `{format_currency(spent_amount)}` | ⚠️ Vượt: `{format_currency(abs(remaining))}`"
         
-        # Category header on its own line
         header = f"{category_emoji} *{category}* `{format_currency(category_total)}`{budget_text}"
         
-        # Show only top 3 items
         items = sorted(expenses_by_category[category], key=lambda x: x["date"], reverse=True)[:3]
         expense_items = []
         
         for item in items:
             expense_items.append(f"  {format_expense_item_simple(item)}")
         
-        # Add count if more items - on separate line
         if len(expenses_by_category[category]) > 3:
             remaining_count = len(expenses_by_category[category]) - 3
             expense_items.append(f"  _... +{remaining_count} giao dịch_")
         
-        # Combine header with items
         category_section = header + "\n" + "\n".join(expense_items)
         categories_content.append(category_section)
     
-    # Financial summary - CONCISE
     total_income = income_breakdown["total"]
     net_savings = total_income - total_month
     
-    # Account summary - SIMPLE
     spending_total = account_balances.get('need', 0) + account_balances.get('fun', 0)
     
-    # Wishlist summary - BRIEF
     wishlist_info = ""
     if wishlist_sums["level1"] > 0:
         after_level1 = net_savings - wishlist_sums["level1"]
@@ -462,7 +408,6 @@ Chưa có chi tiêu nào."""
         else:
             wishlist_info = f"\n🔒 Thiếu Level 1: `{format_currency(abs(after_level1))}`"
     
-    # Budget summary - BRIEF
     budget_info = ""
     if total_budget > 0:
         budget_remaining = total_budget - total_month
@@ -489,7 +434,6 @@ Chưa có chi tiêu nào."""
     await send_long_message(update, message)
 
 def _find_matching_category(category_input: str) -> str:
-    """Find matching category - simplified"""
     from difflib import get_close_matches
     
     if not category_input:
@@ -497,11 +441,9 @@ def _find_matching_category(category_input: str) -> str:
     
     category_input = category_input.strip().lower()
     
-    # Try exact match first
     if category_input in EXPENSE_CATEGORIES:
         return category_input
     
-    # Try fuzzy matching
     try:
         close_matches = get_close_matches(category_input, EXPENSE_CATEGORIES, n=1, cutoff=0.4)
         if close_matches:
@@ -509,16 +451,14 @@ def _find_matching_category(category_input: str) -> str:
     except Exception:
         pass
     
-    # Try partial matching
     for category in EXPENSE_CATEGORIES:
         if category_input in category or category in category_input:
             return category
     
-    # Try common variations
     variations = {
         "an": "ăn uống", "anuong": "ăn uống", "food": "ăn uống",
         "meo": "mèo", "cat": "mèo",
-        "congtrinh": "công trình", "construction": "công trình",
+        "mama": "mama",
         "dichuyen": "di chuyển", "transport": "di chuyển",
         "hoadon": "hóa đơn", "bills": "hóa đơn",
         "canhan": "cá nhân", "personal": "cá nhân",

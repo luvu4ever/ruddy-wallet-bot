@@ -7,14 +7,12 @@ from utils import check_authorization, send_formatted_message, safe_parse_amount
 from config import INCOME_TYPES, get_income_emoji, get_message
 
 async def income_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Enhanced income command with automatic allocation: /income salary 3m lương tháng"""
     if not await check_authorization(update):
         return
     
     user_id = update.effective_user.id
     args = context.args
     
-    # Show income types if no arguments
     if not args:
         await send_formatted_message(update, get_message("income_types"))
         return
@@ -23,23 +21,20 @@ async def income_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_formatted_message(update, get_message("format_errors")["income_usage"])
         return
     
-    # Parse arguments
     income_type = args[0].lower()
     success, amount, _ = safe_parse_amount(args[1])
     
     if not success:
-        await send_formatted_message(update, "⌘ Số tiền không hợp lệ")
+        await send_formatted_message(update, "⚠ Số tiền không hợp lệ")
         return
     
     description = " ".join(args[2:]) if len(args) > 2 else f"{income_type} income"
     
-    # Validate income type
     if income_type not in INCOME_TYPES:
         message = get_message("format_errors")["invalid_income_type"].format(type=income_type)
         await send_formatted_message(update, message)
         return
     
-    # Save income record
     income_data = {
         "user_id": user_id,
         "amount": amount,
@@ -51,10 +46,8 @@ async def income_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     income_result = db.insert_income(income_data)
     income_id = income_result.data[0]["id"] if income_result.data else None
     
-    # Process allocation
     allocation_message = await _process_income_allocation(user_id, income_type, amount, description, income_id)
     
-    # Response
     emoji = get_income_emoji(income_type)
     message = f"""✅ *ĐÃ THÊM THU NHẬP!*
 
@@ -66,34 +59,27 @@ async def income_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_formatted_message(update, message)
 
 async def _process_income_allocation(user_id, income_type, amount, description, income_id):
-    """Process income allocation to accounts - USES CONSOLIDATED DB FUNCTIONS"""
-    
-    if income_type == "construction":
-        # Construction income goes directly to construction account using CONSOLIDATED function
+    if income_type == "mama":
         db.update_account_balance(
-            user_id, "construction", amount, "income_allocation", 
-            f"Construction income: {description}", income_id
+            user_id, "mama", amount, "income_allocation", 
+            f"Mama income: {description}", income_id
         )
         
-        return f"🗯️ *Đã thêm vào tài khoản xây dựng*: {format_currency(amount)}"
+        return f"✅ *Đã thêm vào tài khoản mama*: {format_currency(amount)}"
     
     else:
-        # Salary/random income gets allocated by percentages
         from .allocation_handlers import get_user_allocations, validate_allocations
         from config import ACCOUNT_DESCRIPTIONS
         
         allocations = get_user_allocations(user_id)
         
-        # Check if user has allocations set up
         if not allocations:
             return f"⚠️ *Chưa thiết lập phân bổ!*\nDùng `/allocation` để thiết lập phân bổ thu nhập"
         
-        # Validate allocations
         if not validate_allocations(allocations):
             total_pct = sum(allocations.values())
             return f"⚠️ *Cảnh báo*: Tổng phân bổ = {total_pct}% (không phải 100%)\n*Vui lòng kiểm tra `/allocation`*"
         
-        # Allocate to accounts using CONSOLIDATED database function
         allocation_details = []
         
         for account_type in ["need", "fun", "saving", "invest"]:
@@ -101,7 +87,6 @@ async def _process_income_allocation(user_id, income_type, amount, description, 
             if percentage > 0:
                 allocated_amount = amount * (percentage / 100)
                 
-                # Use CONSOLIDATED database function
                 db.update_account_balance(
                     user_id, account_type, allocated_amount, "income_allocation",
                     f"{description} ({percentage}%)", income_id
@@ -113,11 +98,10 @@ async def _process_income_allocation(user_id, income_type, amount, description, 
         return "💰 *PHÂN BỔ TÀI KHOẢN*:\n" + "\n".join(allocation_details)
 
 def calculate_income_by_type(user_id, month_start):
-    """Calculate income by construction vs general - simplified"""
     try:
         income_data = db.get_monthly_income(user_id, month_start)
         
-        construction_income = 0
+        mama_income = 0
         general_income = 0
         
         if income_data.data:
@@ -125,25 +109,24 @@ def calculate_income_by_type(user_id, month_start):
                 amount = float(income["amount"])
                 income_type = income.get("income_type", "random")
                 
-                if income_type == "construction":
-                    construction_income += amount
-                else:  # salary or random
+                if income_type == "mama":
+                    mama_income += amount
+                else:
                     general_income += amount
         
         return {
-            "construction": construction_income,
+            "mama": mama_income,
             "general": general_income,
-            "total": construction_income + general_income
+            "total": mama_income + general_income
         }
     except Exception:
-        return {"construction": 0, "general": 0, "total": 0}
+        return {"mama": 0, "general": 0, "total": 0}
 
 def calculate_expenses_by_income_type(user_id, month_start):
-    """Calculate expenses by construction vs general categories - simplified"""
     try:
         expenses_data = db.get_monthly_expenses(user_id, month_start)
         
-        construction_expenses = 0
+        mama_expenses = 0
         general_expenses = 0
         
         if expenses_data.data:
@@ -151,15 +134,15 @@ def calculate_expenses_by_income_type(user_id, month_start):
                 amount = float(expense["amount"])
                 category = expense["category"]
                 
-                if category == "công trình":
-                    construction_expenses += amount
-                else:  # all other categories
+                if category == "mama":
+                    mama_expenses += amount
+                else:
                     general_expenses += amount
         
         return {
-            "construction": construction_expenses,
+            "mama": mama_expenses,
             "general": general_expenses,
-            "total": construction_expenses + general_expenses
+            "total": mama_expenses + general_expenses
         }
     except Exception:
-        return {"construction": 0, "general": 0, "total": 0}
+        return {"mama": 0, "general": 0, "total": 0}
