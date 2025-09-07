@@ -8,7 +8,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 gemini_model = genai.GenerativeModel('gemini-1.5-flash')
 
 def parse_message_with_gemini(text: str, user_id: int) -> dict:
-    """Simple Gemini parsing for Vietnamese/English messages"""
+    """Enhanced Gemini parsing for Vietnamese/English messages with explicit category support"""
     
     categories_str = ", ".join(EXPENSE_CATEGORIES)
     
@@ -19,26 +19,38 @@ Message: "{text}"
 
 Available categories: {categories_str}
 
-SIMPLE RULES:
-- "ăn uống" for food/drinks (bún, phở, cơm, cà phê)
-- "mèo" for cat items (cát mèo, thức ăn mèo)
-- "mama" for anything related to mama (both furniture and things that involve mama)              
-- "linh tinh" for small items (đèn nhỏ, ly, dao)
-- "cá nhân" for clothes/entertainment (áo, phim, game)
-- "di chuyển" for transport (xăng, taxi, grab)
-- "hóa đơn" for bills (điện, nước, internet)
-- "khác" for other things
+ENHANCED RULES:
+1. EXPLICIT CATEGORY IN PARENTHESES - HIGHEST PRIORITY:
+   - If text contains (category_name) at the end, USE THAT CATEGORY EXACTLY
+   - Examples: "50k đồng hồ (mama)" → category: "mama"
+   - Examples: "100k cà phê (ăn uống)" → category: "ăn uống"
+   - Examples: "200k áo (cá nhân)" → category: "cá nhân"
+   - IGNORE automatic categorization if explicit category is provided
 
-CURRENCY CONVERSION:
-- k = thousand (50k = 50000)
-- m = million (1.5m = 1500000)  
-- tr = million (3tr = 3000000)
+2. AUTOMATIC CATEGORIZATION (only if no explicit category):
+   - "ăn uống" for food/drinks (bún, phở, cơm, cà phê)
+   - "mèo" for cat items (cát mèo, thức ăn mèo)
+   - "mama" for anything related to mama (both furniture and things that involve mama)              
+   - "linh tinh" for small items (đèn nhỏ, ly, dao)
+   - "cá nhân" for clothes/entertainment (áo, phim, game)
+   - "di chuyển" for transport (xăng, taxi, grab)
+   - "hóa đơn" for bills (điện, nước, internet)
+   - "khác" for other things
+
+3. CURRENCY CONVERSION:
+   - k = thousand (50k = 50000)
+   - m = million (1.5m = 1500000)  
+   - tr = million (3tr = 3000000)
+
+4. DESCRIPTION CLEANING:
+   - Remove the (category) part from description
+   - Example: "đồng hồ (mama)" → description: "đồng hồ"
 
 Return ONLY JSON:
 {{
     "type": "expenses",
     "expenses": [
-        {{"amount": 50000, "description": "bún bò huế", "category": "ăn uống"}}
+        {{"amount": 50000, "description": "đồng hồ", "category": "mama"}}
     ]
 }}
 
@@ -54,6 +66,15 @@ If not expense, return: {{"type": "unknown", "expenses": []}}
             result_text = result_text.replace('```json', '').replace('```', '').strip()
         
         result = json.loads(result_text)
+        
+        # Validate categories in the result
+        if result.get("type") == "expenses" and result.get("expenses"):
+            for expense in result["expenses"]:
+                category = expense.get("category", "").lower()
+                # Ensure the category exists in our available categories
+                if category not in [cat.lower() for cat in EXPENSE_CATEGORIES]:
+                    expense["category"] = "khác"  # Default fallback
+        
         return result
         
     except Exception as e:
